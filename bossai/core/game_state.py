@@ -30,6 +30,7 @@ class HazardShape(str, Enum):
     CIRCLE = "circle"  # centre + radius
     SECTOR = "sector"  # apex + direction + half_angle + radius (cones, fans)
     RECT = "rect"  # start point + direction + length (radius field) + width (lines)
+    POLYGON = "polygon"  # any other shape seen by the camera (vertices field)
 
 
 class HazardPhase(IntEnum):
@@ -58,14 +59,19 @@ class Hazard:
     damage: float = 0.0  # fraction of max HP (sim ground truth, unknown in game)
     confidence: float = 1.0
     skill: str = ""
+    vertices: np.ndarray | None = None  # POLYGON only, (M,2) ground coordinates
 
     def __post_init__(self) -> None:
         self.center = np.asarray(self.center, dtype=np.float64).reshape(2)
+        if self.vertices is not None:
+            self.vertices = np.asarray(self.vertices, dtype=np.float64).reshape(-1, 2)
 
     # ------------------------------------------------------------------ geometry
     def contains(self, pts: np.ndarray, margin: float = 0.0) -> np.ndarray:
         """Boolean mask of points (N,2) inside the hazard grown by `margin`."""
         pts = np.asarray(pts, dtype=np.float64).reshape(-1, 2)
+        if self.shape is HazardShape.POLYGON:
+            return _polygon_signed_distance(pts, self.vertices) <= margin
         d = pts - self.center
         if self.shape is HazardShape.CIRCLE:
             return (d[:, 0] ** 2 + d[:, 1] ** 2) <= (self.radius + margin) ** 2
@@ -102,6 +108,8 @@ class Hazard:
     def polygon(self, n_arc: int = 24) -> np.ndarray:
         """Polygon approximation (M,2) in ground coordinates."""
         c = self.center
+        if self.shape is HazardShape.POLYGON:
+            return self.vertices.copy()
         if self.shape is HazardShape.CIRCLE:
             t = np.linspace(0, 2 * math.pi, n_arc, endpoint=False)
             return c + self.radius * np.stack([np.cos(t), np.sin(t)], 1)
@@ -130,6 +138,7 @@ class Hazard:
             damage=self.damage,
             confidence=self.confidence,
             skill=self.skill,
+            vertices=None if self.vertices is None else self.vertices.copy(),
         )
 
 

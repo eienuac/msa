@@ -1,0 +1,143 @@
+"""Perception tests on frames from the user's Kor Bekçi recordings.
+
+Ground truth comes from the HP numbers printed in the HUD and from manual
+inspection of the frames (time stamps refer to the first recording).
+"""
+
+from pathlib import Path
+
+import cv2
+import numpy as np
+import pytest
+
+from bossai.core.game_state import HazardShape
+from bossai.perception.calibration import GroundProjector, fit_circle
+from bossai.perception.hazard_detection import HazardDetector, ScreenHazard, fill_from_area
+from bossai.perception.tracking import HazardTracker
+from bossai.perception.ui_reader import HudReader
+from bossai.perception.vision import VisionPipeline
+
+DATA = Path(__file__).parent / "data"
+
+
+def frame(name: str) -> np.ndarray:
+    img = cv2.imread(str(DATA / name))
+    assert img is not None, name
+    return img
+
+
+@pytest.fixture(scope="module")
+def hud():
+    return HudReader()
+
+
+@pytest.fixture(scope="module")
+def det():
+    return HazardDetector()
+
+
+class TestHud:
+    def test_macro_on_screenshot(self, hud):
+        assert hud.read(frame("macro_on.jpg")).macro_p_on > 0.95
+
+    @pytest.mark.parametrize("name", ["v1_00.30.jpg", "v1_01.45.jpg", "v1_10.40.jpg", "v1_28.80.jpg"])
+    def test_macro_off_frames(self, hud, name):
+        assert hud.read(frame(name)).macro_p_on < 0.05
+
+    @pytest.mark.parametrize(
+        "name,truth",
+        [("v1_28.00.jpg", 9346 / 12740), ("v1_28.80.jpg", 9255 / 12740), ("macro_on.jpg", 11668 / 19600), ("v1_00.30.jpg", 1.0)],
+    )
+    def test_boss_hp_bar_matches_hud_numbers(self, hud, name, truth):
+        assert hud.read(frame(name)).boss_hp == pytest.approx(truth, abs=0.02)
+
+    def test_player_hp_bar_drops_after_hit(self, hud):
+        full = hud.read(frame("v1_00.30.jpg")).player_hp
+        hit = hud.read(frame("v1_02.60.jpg")).player_hp  # HUD shows 1181/1570, bar still animating
+        assert full > 0.97
+        assert 0.70 < hit < 0.85
+
+
+class TestHazardDetection:
+    @pytest.mark.parametrize("name", ["v1_00.30.jpg", "v1_17.40.jpg", "v1_28.00.jpg", "macro_on.jpg"])
+    def test_no_false_positives(self, det, name):
+        # includes fire braziers, boss lava glow, a reddish tree trunk and red nameplates
+        assert det.detect(frame(name)) == []
+
+    @pytest.mark.parametrize("name", ["v1_01.20.jpg", "v1_01.45.jpg", "v1_01.70.jpg"])
+    def test_player_circle_found_and_projected(self, det, name):
+        hs = det.detect(frame(name))
+        assert len(hs) == 1
+        h = hs[0]
+        assert h.kind == "ellipse" and h.ellipse_iou > 0.9
+        g = GroundProjector().to_ground(h.contour)
+        c, r = fit_circle(g[~np.isnan(g).any(1)])
+        assert np.linalg.norm(c) < 1.0  # cast on the player's position
+        assert 3.0 < r < 5.0  # same skill, same size in every frame
+
+    def test_cone_detected(self, det):
+        hs = det.detect(frame("v1_10.40.jpg"))
+        assert sum(h.area for h in hs) > 100_000
+
+
+class TestGeometry:
+    def test_projector_round_trip(self):
+        p = GroundProjector()
+        px = np.array([[958, 668], [400, 900], [1500, 600], [960, 400]], float)
+        back = p.to_pixels(p.to_ground(px))
+        np.testing.assert_allclose(back, px, atol=1e-6)
+        np.testing.assert_allclose(p.to_ground(px[:1]), [[0.0, 0.0]], atol=1e-9)
+
+    def test_forward_is_up_the_screen(self):
+        g = GroundProjector().to_ground(np.array([[958, 500.0], [1200, 668.0]]))
+        assert g[0, 1] > 1.0 and abs(g[0, 0]) < 0.1  # higher on screen = further forward
+        assert g[1, 0] > 1.0  # right on screen = +x
+
+
+def synthetic(fill_frac: float, n: int = 2000) -> ScreenHazard:
+    rng = np.random.default_rng(int(fill_frac * 1000))
+    vals = np.where(rng.random(n) < fill_frac, 40.0, 20.0) + rng.normal(0, 1, n)
+    return ScreenHazard(
+        contour=np.array([[900, 600], [1000, 600], [1000, 700], [900, 700]], np.float32),
+        area=10000,
+        bbox=(900, 600, 100, 100),
+        kind="ellipse",
+        mean_strength=float(np.median(vals)),
+        strength_sample=vals.astype(np.float32),
+    )
+
+
+class TestTracking:
+    def test_fill_from_area(self):
+        assert fill_from_area(synthetic(0.0).strength_sample, 20.0) < 0.05
+        assert fill_from_area(synthetic(0.25).strength_sample, 20.0) == pytest.approx(0.5, abs=0.05)
+        assert fill_from_area(synthetic(1.0).strength_sample, 20.0) > 0.95
+
+    def test_time_to_impact_from_fill_trend(self):
+        tr = HazardTracker()
+        impact = 1.2
+        estimates = []
+        for i in range(0, 11):
+            t = i * 0.1
+            front = t / impact  # radial front grows linearly -> filled area grows with its square
+            tracks = tr.update(t, [synthetic(front**2)])
+            if tracks and t >= 0.5:
+                estimates.append(t + tr.time_to_impact(tracks[0], t))
+        assert estimates and abs(np.mean(estimates) - impact) < 0.2
+
+    def test_background_object_is_dropped(self):
+        tr = HazardTracker()
+        out = []
+        for i in range(60):  # 6 s static red blob
+            out = tr.update(i * 0.1, [synthetic(0.0)])
+        assert out == []
+
+
+def test_pipeline_outputs_game_state():
+    pipe = VisionPipeline()
+    for i, name in enumerate(["v1_01.20.jpg", "v1_01.45.jpg", "v1_01.70.jpg"]):
+        out = pipe.process(frame(name), 1.2 + 0.25 * i)
+    hz = out.state.hazards
+    assert len(hz) == 1 and hz[0].shape is HazardShape.CIRCLE
+    assert hz[0].contains(np.zeros((1, 2)))[0]  # the player stands in it
+    assert out.state.boss.hp > 0.95
