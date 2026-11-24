@@ -41,6 +41,12 @@ Windows'ta canlı ekran yakalama için:
 pip install -e .[windows]
 ```
 
+Boss mesafesini ve hedef adını okumak için (RapidOCR, modelleri paketle gelir):
+
+```bash
+pip install -e .[ocr]
+```
+
 ## Komutlar
 
 Testler:
@@ -95,11 +101,21 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 - **Boss barı:** ad, mesafe ve yön ("▲ 5 m") ile HP sayıları görünüyor. Bar okuması sayılarla ±%1,5 uyumlu.
 - **Uyarısız saldırı:** boss çevresinde 4–5 ateş patlaması. Zeminde işaret yok, tek ipucu ~1 sn önce kolları kaldırıp ellerin parlaması.
 
+## Görüntüden okunanlar
+
+| Bilgi | Yöntem | Doğrulama (kayıtlar) |
+|---|---|---|
+| Makro açık/kapalı | R çerçevesindeki sarı oranı + ikon parlaklığı | açık 1,00 / kapalı 0,00 |
+| Oyuncu / boss HP | Bar doluluk oranı | boss barı sayılarla ±%1,5 |
+| Dash durumu | Q ikonunun rengi + küçük şarj rakamı (şablon eşleme) | 4 videoda tüm şarj/kilit geçişleri |
+| Boss mesafesi, hedef adı | RapidOCR + son 3 okumanın ortancası | tek karede 30/33 doğru |
+| Tehlike alanları | Renk tonu + dışbükey bölge + takip + dolum hızı | 4 uyarıda patlama ±0,3 sn |
+
 ## Bilinen eksikler (sıradaki adımlar)
 
-- Boss'un zemindeki konumu henüz okunmuyor. Bunun için boss barındaki mesafe/yön için rakam okuma (OCR) ya da bir boss dedektörü gerekiyor. Bu yüzden canlı modda boss ile ilgili gözlemler boş.
-- Dash şarj rakamı okunmuyor. Şimdilik ikonun parlaklığından "hazır/değil" bilgisi çıkarılıyor.
-- Boss'un saldırı hazırlığını (kol kaldırma ve parlama) görüntüden tespit etme yok.
+- Boss'un **yönü** okunmuyor; mesafe biliniyor, yön "ileride" varsayılıyor. Oku okuyan bir glif dedektörü ya da boss dedektörü gerekiyor.
+- Boss'un uyarısız saldırı hazırlığını (kol kaldırma ve parlama) tespit etme yok. Kayıtlarda bu saldırıdan sadece 3 örnek var; daha fazla kayıt gerekiyor.
+- Gölge modda tuşa basılmadığı için makro durum makinesi basışların "kaybolduğunu" görüp kendini kilitliyor. Bu beklenen bir durum; canlı kontrolde oluşmaz.
 - Ekranda birbirine değen birden fazla daire tek bölge olarak birleşiyor; daireleri tek tek ayırma gerekiyor.
 - Kamera modelinin ölçeği varsayıma dayanıyor. Bir kalibrasyon kaydıyla netleşecek.
 - Görüntü işleme tek çekirdekte ~33 ms/kare sürüyor. Hedef ≤15 ms.

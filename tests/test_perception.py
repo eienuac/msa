@@ -141,3 +141,70 @@ def test_pipeline_outputs_game_state():
     assert len(hz) == 1 and hz[0].shape is HazardShape.CIRCLE
     assert hz[0].contains(np.zeros((1, 2)))[0]  # the player stands in it
     assert out.state.boss.hp > 0.95
+
+
+def icon_frame(name: str) -> np.ndarray:
+    """Place a saved 70x75 Q-icon crop back at its HUD position in a blank 1080p frame."""
+    canvas = np.zeros((1080, 1920, 3), np.uint8)
+    canvas[950:1025, 594:664] = cv2.imread(str(DATA / f"{name}.png"))
+    return canvas
+
+
+class TestDash:
+    @pytest.mark.parametrize(
+        "name,ready,charges,empty",
+        [
+            ("q_ready3", True, 3, False),
+            ("q_ready2", True, 2, False),
+            ("q_lock1", False, 1, False),
+            ("q_lock2", False, 2, False),
+            ("q_empty", False, 0, True),
+        ],
+    )
+    def test_icon_states(self, name, ready, charges, empty):
+        from bossai.perception.dash_reader import DashIconReader
+
+        r = DashIconReader().read(icon_frame(name))
+        assert (r.ready, r.charges, r.empty) == (ready, charges, empty)
+
+    def test_unlock_flash_counts_as_ready(self):
+        from bossai.perception.dash_reader import DashIconReader
+
+        assert DashIconReader().read(icon_frame("q_flash")).ready
+
+    def test_filter_needs_two_empty_readings(self):
+        from bossai.perception.dash_reader import DashReading, DashStateFilter
+
+        f = DashStateFilter()
+        f.update(DashReading(True, 3, False, False, 0.3, {}), 0.0)
+        empty = DashReading(False, 0, True, True, 0.0, {})
+        assert f.update(empty, 0.1)[0] == 3  # one "empty" frame (press border) is ignored
+        charges, can, lock = f.update(empty, 0.2)
+        assert charges == 0 and not can and 7.0 < lock <= 8.0
+
+
+class TestBossText:
+    @pytest.mark.parametrize(
+        "text,dist,is_boss,behind",
+        [
+            ("Sv.22Kor Bekcil6m arkanda*", 6, True, True),
+            ("Sv 22 Kor Bekci 12ml*", 12, True, False),
+            ("(Sv.22 Kor Beki 42m1*>", 2, True, False),
+            ("Sv.22 Yosumlu Kaya Orimcegi 1m*", 1, False, False),
+            ("", None, False, False),
+        ],
+    )
+    def test_parse(self, text, dist, is_boss, behind):
+        from bossai.perception.boss_reader import parse_target_text
+
+        info = parse_target_text(text, ("kor be",))
+        assert (info.distance_m, info.is_boss, info.behind) == (dist, is_boss, behind)
+
+    def test_ocr_reads_distance_from_frame(self):
+        from bossai.perception.boss_reader import BossInfoReader
+
+        r = BossInfoReader()
+        if not r.available:
+            pytest.skip("rapidocr_onnxruntime not installed")
+        info = r.read(frame("v1_28.00.jpg"), 0.0)  # HUD: "Kor Bekçi | 2 m"
+        assert info.is_boss and info.distance_m == 2

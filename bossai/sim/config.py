@@ -80,9 +80,9 @@ class SimConfig:
     dash_distance: Rng = (4.0, 7.0)
     dash_duration: Rng = (0.2, 0.3)
     dash_charges: int = 3  # (video)
-    dash_gap: Rng = (0.4, 0.9)  # (video) "0,x" countdown between dashes
-    dash_charge_regen: Rng = (3.5, 4.5)  # (video) ~4 s per charge
-    dash_empty_lockout: Rng = (7.5, 9.0)  # (video) ~8 s after the third dash
+    dash_gap: Rng = (0.9, 1.05)  # (video) "1,0" countdown between dashes
+    dash_charge_regen: Rng = (3.0, 3.8)  # (video) 3.25-3.5 s per charge
+    dash_empty_lockout: Rng = (7.5, 8.5)  # (video) ~8 s after the third dash
     dash_iframes: bool = False  # unknown; keep False so the agent never relies on it
     # boss
     kill_time: Rng = (70.0, 110.0)  # seconds of uninterrupted macro damage (video: whole fight ~130 s)

@@ -48,6 +48,9 @@ def overlay(frame: np.ndarray, intent, macro, out) -> np.ndarray:
     lines = [
         f"agent: move={MOVE_NAMES[intent.move]} dash={int(intent.dash)} macro_want={['keep', 'ON', 'OFF'][intent.macro]}",
         f"macro state={macro.state.name} P(ON)={out.hud.macro_p_on:.2f}",
+        f"boss dist={'?' if out.state.boss.pos is None else f'{out.state.boss_distance():.0f} m'} "
+        f"target_is_boss={out.state.boss.targeted} dash charges={out.state.player.dash_charges} "
+        f"ready={out.state.player.can_dash}",
         f"hazards={len(out.state.hazards)} " + " ".join(f"tti={h.time_to_impact:.1f}" for h in out.state.hazards[:4]),
     ]
     for i, s in enumerate(lines):
@@ -111,7 +114,7 @@ def main(argv: list[str] | None = None) -> None:
                 ev = MacroEvidence(
                     indicator_on=out.hud.macro_p_on,
                     damage_dealt=bool(prev_boss - s.boss.hp > 1e-3),
-                    attack_expected=False,  # needs boss position (next phase)
+                    attack_expected=s.in_melee_range() and s.boss.targeted and ctx.move_dir == 0,
                     safe_to_probe=not any(h.contains(np.zeros((1, 2)), margin=0.8)[0] for h in s.hazards),
                     can_turn_on=s.boss.targeted,
                 )

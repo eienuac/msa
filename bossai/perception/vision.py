@@ -14,7 +14,9 @@ from dataclasses import dataclass, field
 import numpy as np
 
 from ..core.game_state import BossState, GameState, Hazard, HazardPhase, HazardShape, MacroState, PlayerState
+from .boss_reader import BossInfoReader
 from .calibration import CameraModel, GroundProjector, fit_circle
+from .dash_reader import DashIconReader, DashStateFilter
 from .hazard_detection import DetectorConfig, HazardDetector
 from .tracking import HazardTracker, TrackerConfig
 from .ui_reader import HudReader, HudReading, UILayout
@@ -27,6 +29,9 @@ class VisionConfig:
     tracker: TrackerConfig = field(default_factory=TrackerConfig)
     camera: CameraModel = field(default_factory=CameraModel)
     circle_fit_max_residual: float = 0.12  # relative residual to accept a ground circle
+    boss_keywords: tuple[str, ...] = ("kor be",)  # target name fragment that identifies the boss
+    melee_range_m: float = 2.5  # HUD metres at which the macro lands hits (recordings: "2 m")
+    read_boss_text: bool = True
 
 
 @dataclass
@@ -34,6 +39,8 @@ class VisionOutput:
     state: GameState
     hud: HudReading
     tracks: list
+    dash: object = None
+    boss_info: object = None
 
 
 class VisionPipeline:
@@ -42,6 +49,9 @@ class VisionPipeline:
         self.hud = HudReader(self.cfg.layout)
         self.detector = HazardDetector(self.cfg.detector, self.cfg.layout)
         self.tracker = HazardTracker(self.cfg.tracker)
+        self.dash_reader = DashIconReader()
+        self.dash_filter = DashStateFilter()
+        self.boss_reader = BossInfoReader(self.cfg.boss_keywords) if self.cfg.read_boss_text else None
         self._proj: GroundProjector | None = None
         self._last_player_hp = 1.0
         self._last_boss_hp = 1.0
@@ -80,23 +90,31 @@ class VisionPipeline:
         while self._hp_hist and t - self._hp_hist[0][0] > 1.0:
             self._hp_hist.pop(0)
         t0, p0, b0 = self._hp_hist[0]
-        ready = hud.dash_ready > 0.5
+        dash = self.dash_reader.read(frame)
+        charges, can_dash, lockout = self.dash_filter.update(dash, t)
+        info = self.boss_reader.read(frame, t) if self.boss_reader is not None else None
+        targeted = hud.boss_hp is not None and (info is None or info.is_boss)
+        boss_pos = None
+        if info is not None and info.distance_m is not None:
+            # bearing is not read yet: assume the boss is ahead (the camera usually faces it)
+            boss_pos = np.array([0.0, info.distance_m])
         state = GameState(
             t=t,
             player=PlayerState(
                 pos=np.zeros(2),
                 hp=php,
                 max_hp=1.0,
-                dash_charges=3 if ready else 0,  # TODO: read the charge digit
-                dash_lockout=0.0 if ready else 1.0,
+                dash_charges=charges,
+                dash_lockout=0.0 if can_dash else max(lockout, 0.05),
             ),
-            boss=BossState(pos=None, hp=bhp, max_hp=1.0, targeted=hud.boss_hp is not None),
+            boss=BossState(pos=boss_pos, hp=bhp, max_hp=1.0, targeted=targeted, visible=False, hitbox_radius=0.5),
             hazards=hazards,
             macro=MacroState.UNKNOWN,  # owned by MacroStateManager, fed with hud.macro_p_on
+            melee_range=self.cfg.melee_range_m,
             recent_damage_dealt=max(0.0, b0 - bhp),
             recent_damage_taken=max(0.0, p0 - php),
         )
-        return VisionOutput(state, hud, tracks)
+        return VisionOutput(state, hud, tracks, dash, info)
 
 
 __all__ = ["VisionPipeline", "VisionConfig", "VisionOutput", "HazardPhase"]
