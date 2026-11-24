@@ -55,12 +55,15 @@ class BossFightEnv(gym.Env):
         encoder: ObservationEncoder | None = None,
         render_mode: str | None = None,
         gamma: float = 0.99,
+        replay_prob: float = 0.0,
     ):
         super().__init__()
         cfg = cfg or SimConfig()
         if level is not None:
             cfg = level_config(level, cfg)
-        self.cfg = cfg
+        self.cfg = cfg  # curriculum level
+        self.ep_cfg = cfg  # this episode (an easier level when replaying)
+        self.replay_prob = replay_prob  # share of episodes from a lower level, so old skills are kept
         self.encoder = encoder or ObservationEncoder()
         self.observation_space = self.encoder.observation_space
         self.action_space = gym.spaces.MultiDiscrete(NVEC)
@@ -88,8 +91,11 @@ class BossFightEnv(gym.Env):
             self._rng = np.random.default_rng(seed)
         if options and "level" in options:
             self.set_level(int(options["level"]))
-        self.world = BossWorld(self.cfg, self._rng)
-        self.perception = PerceptionModel(self.cfg.noise, self._rng, self.encoder.fov, self.cfg.decision_dt)
+        self.ep_cfg = self.cfg
+        if self.replay_prob > 0 and self.cfg.level > 0 and self._rng.random() < self.replay_prob:
+            self.ep_cfg = level_config(int(self._rng.integers(0, self.cfg.level)), self.cfg)
+        self.world = BossWorld(self.ep_cfg, self._rng)
+        self.perception = PerceptionModel(self.ep_cfg.noise, self._rng, self.encoder.fov, self.ep_cfg.decision_dt)
         self.backend = RecordingBackend()
         self.macro = MacroStateManager()
         self.macro.reset(0.0)
@@ -137,8 +143,8 @@ class BossFightEnv(gym.Env):
             h.contains(prev_truth.player.pos[None], margin=0.4)[0] and h.time_to_impact < 0.5 and h.phase == HazardPhase.TELEGRAPH
             for h in prev_truth.hazards
         )
-        wev = w.step(held, taps, self.cfg.decision_dt)
-        changed, reversal = self.ctx.update(w.t, self.controller.current_dir, report.r_pressed, self.cfg.decision_dt)
+        wev = w.step(held, taps, self.ep_cfg.decision_dt)
+        changed, reversal = self.ctx.update(w.t, self.controller.current_dir, report.r_pressed, self.ep_cfg.decision_dt)
 
         ev = StepEvents(
             boss_damage=wev.boss_damage,
@@ -160,7 +166,7 @@ class BossFightEnv(gym.Env):
         self._truth = w.true_state()
         self._obs = self.perception.observe(w)
         terminated = wev.boss_killed or wev.player_dead
-        truncated = (not terminated) and w.t >= self.cfg.max_time
+        truncated = (not terminated) and w.t >= self.ep_cfg.max_time
         reward, comps = self.rewards.step(prev_truth, self._truth, ev, terminated)
 
         st = self.stats
@@ -179,7 +185,7 @@ class BossFightEnv(gym.Env):
         info: dict = {"reward_components": comps, "hit_skills": wev.hit_skills}
         if terminated or truncated:
             st.outcome = "kill" if wev.boss_killed else "death" if wev.player_dead else "timeout"
-            info["episode_stats"] = dict(st.__dict__, time=w.t, level=self.cfg.level)
+            info["episode_stats"] = dict(st.__dict__, time=w.t, level=self.ep_cfg.level)
         self._last_intent = intent
         obs = self.encoder.encode(self._obs.state, self.macro.state, self.ctx)
         return obs, reward, terminated, truncated, info

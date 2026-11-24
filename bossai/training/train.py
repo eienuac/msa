@@ -66,6 +66,10 @@ def main(argv: list[str] | None = None) -> Path:
     ap.add_argument("--resume", type=str, default=None, help="run folder to continue training from")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--checkpoint-every", type=int, default=200_000)
+    ap.add_argument("--resume-from", type=str, default=None, help="checkpoint inside --resume to start from, e.g. checkpoints/step_4306776")
+    ap.add_argument("--replay-prob", type=float, default=0.25, help="share of episodes from a lower level than the current one")
+    ap.add_argument("--lr", type=float, default=None, help="learning rate (start of a linear decay to 1/5); default 3e-4, or the saved schedule when resuming")
+    ap.add_argument("--ent-coef", type=float, default=None, help="entropy bonus; default 0.01, or the saved value when resuming")
     ap.add_argument("--dummy-vec", action="store_true", help="single-process envs (debugging)")
     args = ap.parse_args(argv)
 
@@ -83,7 +87,7 @@ def main(argv: list[str] | None = None) -> Path:
         n_envs=args.n_envs,
         seed=args.seed,
         vec_env_cls=vec_cls,
-        env_kwargs=dict(cfg=start_cfg, reward_weights=weights),
+        env_kwargs=dict(cfg=start_cfg, reward_weights=weights, replay_prob=args.replay_prob),
     )
     write_run_files(
         run_dir,
@@ -94,9 +98,19 @@ def main(argv: list[str] | None = None) -> Path:
     )
     tb = str(run_dir / "tb")
     if args.resume:
-        model = MaskablePPO.load(Path(args.resume) / "model.zip", env=env, device="cpu", tensorboard_log=tb)
+        src = Path(args.resume) / (f"{args.resume_from}.zip" if args.resume_from else "model.zip")
+        model = MaskablePPO.load(src, env=env, device="cpu", tensorboard_log=tb)
+        if args.lr is not None:
+            # SB3 measures progress from step 0, so a resumed run starts part-way through it;
+            # stretch the schedule over this run only
+            p0 = args.timesteps / (args.timesteps + model.num_timesteps)
+            sched = linear_schedule(args.lr, args.lr * 0.2)
+            model.lr_schedule = lambda p: sched(min(1.0, p / p0))
+            model.learning_rate = args.lr
+        if args.ent_coef is not None:
+            model.ent_coef = args.ent_coef
     else:
-        model = build_model(env, args.seed, tb)
+        model = build_model(env, args.seed, tb, **({"lr": args.lr} if args.lr else {}), **({"ent_coef": args.ent_coef} if args.ent_coef is not None else {}))
     curriculum = CurriculumCallback(args.level_start, args.level_max)
     curriculum.verbose = 1
     callbacks = [curriculum, EpisodeLoggerCallback(), RunCheckpointCallback(run_dir, args.checkpoint_every)]

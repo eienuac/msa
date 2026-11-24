@@ -236,3 +236,19 @@ def test_beams_cross_near_the_player():
     from bossai.core.game_state import HazardShape
 
     assert all(b.shape is HazardShape.RECT and b.radius >= 25 for b in beams)
+
+
+def test_replay_episodes_use_lower_levels():
+    # a share of the episodes comes from easier levels so earlier skills are not forgotten
+    from bossai.sim.env import BossFightEnv
+
+    env = BossFightEnv(level=3, replay_prob=1.0)
+    seen = set()
+    for seed in range(12):
+        env.reset(seed=seed)
+        seen.add(env.ep_cfg.level)
+    assert seen <= {0, 1, 2} and len(seen) >= 2
+    assert env.get_level() == 3  # the curriculum level itself is unchanged
+    env = BossFightEnv(level=3, replay_prob=0.0)
+    env.reset(seed=0)
+    assert env.ep_cfg.level == 3
