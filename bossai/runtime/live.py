@@ -91,7 +91,8 @@ def main(argv: list[str] | None = None) -> None:
         backend = NullBackend()
     controller = ActionController(backend, macro, ControllerConfig())
     ctx = AgentContext()
-    src = open_source(args.source)
+    is_file = args.source not in ("dxcam", "mss")
+    src = open_source(args.source, step=2 if is_file else 1)  # recordings are 60 fps; 30 fps is plenty
     writer = None
     next_decision = 0.0
     prev_boss = 1.0
@@ -100,7 +101,7 @@ def main(argv: list[str] | None = None) -> None:
         while True:
             got = src.read()
             if got is None:
-                if args.source.endswith((".mp4", ".mkv", ".avi")):
+                if is_file:
                     break
                 continue
             frame, t = got
@@ -130,7 +131,8 @@ def main(argv: list[str] | None = None) -> None:
                 if args.out:
                     small = cv2.resize(vis, None, fx=0.5, fy=0.5)
                     if writer is None:
-                        writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*"mp4v"), 30, (small.shape[1], small.shape[0]))
+                        out_fps = getattr(src, "fps", 60.0) / getattr(src, "step", 1) if is_file else 30
+                        writer = cv2.VideoWriter(args.out, cv2.VideoWriter_fourcc(*"mp4v"), out_fps, (small.shape[1], small.shape[0]))
                     writer.write(small)
                 if args.show:
                     cv2.imshow("boss agent", cv2.resize(vis, None, fx=0.5, fy=0.5))
