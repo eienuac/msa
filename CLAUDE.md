@@ -19,6 +19,9 @@ See README.md for the module map and commands.
 ## Game facts (Kor Bekçi, from the user and the recordings)
 - Melee character. R = in-game auto-attack ("Asistan"); ON = yellow frame on the
   R icon. Walking turns the macro OFF; R next to the boss re-selects it.
+- Calibration clip: steady walk ~10 ground units/s (W slightly slower, ~9), dash adds
+  ~5-6 units, a player-centred circle has radius ~3.8 units → ~0.4 s to walk out from
+  the centre. Camera does not rotate by itself; A/D strafe.
 - Q = dash in the movement direction, 3 charges, 1.0 s lock between dashes,
   one charge back every ~3.3 s, ~8 s lockout after the third. No invulnerability.
 - Warnings: circles (on the player, around the boss, 3-6 at once), cones from

@@ -78,11 +78,13 @@ class SimConfig:
     max_time: float = 240.0
     arena_radius: Rng = (18.0, 25.0)
     # player
-    walk_speed: Rng = (4.5, 6.5)
+    # (calibration clip) units are the vision ground units: steady walk ~9-10.6/s, the
+    # camera never rotated by itself, A/D strafe. A player-centred circle has radius ~3.8.
+    walk_speed: Rng = (8.5, 11.0)
     accel_time: Rng = (0.03, 0.12)
     hitbox: float = 0.4
-    dash_distance: Rng = (4.0, 7.0)
-    dash_duration: Rng = (0.2, 0.3)
+    dash_distance: Rng = (4.5, 6.5)  # (calibration clip) ~5-6 on top of walking
+    dash_duration: Rng = (0.25, 0.35)
     dash_charges: int = 3  # (video)
     dash_gap: Rng = (0.9, 1.05)  # (video) "1,0" countdown between dashes
     dash_charge_regen: Rng = (3.0, 3.8)  # (video) 3.25-3.5 s per charge

@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 
 from ..core.game_state import DIRECTION_VECTORS, GameState, MacroState
-from ..core.safety import EscapeParams, SafetyPlanner
+from ..core.safety import EscapeParams, SafetyPlanner, ray_features
 
 
 def direction_towards(vec: np.ndarray) -> int:
@@ -70,6 +70,12 @@ class ExpertPolicy(BasePolicy):
         if not attack:
             self.name = "pacifist"
 
+    def _blocked(self, s: GameState, move: int) -> bool:
+        """True if walking that way enters a warning zone before reaching the boss."""
+        rf = ray_features(s, self.planner.p, DIRECTION_VECTORS[move : move + 1])
+        reach = min(s.boss_distance(), 4.0) if s.boss.pos is not None else 4.0
+        return bool(rf.free_dist[0] < reach)
+
     def act(self, env) -> np.ndarray:
         s = env.observed_state()
         prev = env.ctx.move_dir
@@ -81,6 +87,8 @@ class ExpertPolicy(BasePolicy):
             mac = 2 if macro_state == MacroState.ON else 0
             return np.array([move, int(dash and s.player.can_dash), mac])
         move = _approach(s)
+        if move and self._blocked(s, move):
+            move = 0  # wait outside instead of walking into a warning zone
         mac = 0
         if self.attack and macro_state == MacroState.OFF and (s.boss.targeted or s.in_melee_range()) and move == 0:
             mac = 1
