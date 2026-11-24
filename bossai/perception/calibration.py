@@ -12,7 +12,7 @@ Ground frame: origin at the player's feet, +y = camera forward (W), +x = right.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import numpy as np
 
@@ -27,6 +27,32 @@ class CameraModel:
     foot_px: tuple[float, float] = (958.0, 668.0)  # player's ground contact point
     width: int = 1920
     height: int = 1080
+
+    def _arm(self) -> tuple[float, float]:
+        """(pivot height, arm length) of the follow camera implied by this model.
+
+        The game camera orbits a pivot on the character at a fixed distance
+        (maximum zoom-out); the pivot stays on the optical axis. Tilting the
+        camera therefore changes its height and moves the feet a little on screen.
+        """
+        th = math.radians(self.pitch_deg)
+        k = (self.foot_px[1] - self.cy) / self.focal_px
+        arm_per_pivot = (math.cos(th) - k * math.sin(th)) / k
+        pivot = self.height_m / (1.0 + arm_per_pivot * math.sin(th))
+        return pivot, arm_per_pivot * pivot
+
+    def with_pitch(self, pitch_deg: float) -> "CameraModel":
+        """The same follow camera tilted to another pitch (keeps zoom and pivot)."""
+        if abs(pitch_deg - self.pitch_deg) < 1e-9:
+            return self
+        pivot, arm = self._arm()
+        th = math.radians(pitch_deg)
+        foot_y = self.cy + self.focal_px * pivot * math.cos(th) / (arm + pivot * math.sin(th))
+        return replace(self, pitch_deg=float(pitch_deg), height_m=pivot + arm * math.sin(th), foot_px=(self.foot_px[0], foot_y))
+
+    def with_foot(self, x: float, y: float) -> "CameraModel":
+        """Player seen at another screen point (camera lag while moving)."""
+        return replace(self, foot_px=(float(x), float(y)))
 
     def scaled(self, w: int, h: int) -> "CameraModel":
         if (w, h) == (self.width, self.height):

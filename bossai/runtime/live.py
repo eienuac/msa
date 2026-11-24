@@ -43,7 +43,7 @@ def kill_switch_pressed() -> bool:
     return bool(ctypes.windll.user32.GetAsyncKeyState(0x7B) & 0x8000)  # F12
 
 
-def overlay(frame: np.ndarray, intent, macro, out) -> np.ndarray:
+def overlay(frame: np.ndarray, intent, macro, out, foot=(958.0, 668.0), pitch: float | None = None) -> np.ndarray:
     vis = frame.copy()
     lines = [
         f"agent: move={MOVE_NAMES[intent.move]} dash={int(intent.dash)} macro_want={['keep', 'ON', 'OFF'][intent.macro]}",
@@ -52,6 +52,7 @@ def overlay(frame: np.ndarray, intent, macro, out) -> np.ndarray:
         f"target_is_boss={out.state.boss.targeted} dash charges={out.state.player.dash_charges} "
         f"ready={out.state.player.can_dash}",
         f"hazards={len(out.state.hazards)} " + " ".join(f"tti={h.time_to_impact:.1f}" for h in out.state.hazards[:4]),
+        f"camera pitch={pitch:.1f}" if pitch is not None else "camera pitch=default",
     ]
     for i, s in enumerate(lines):
         cv2.putText(vis, s, (520, 180 + 36 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 5)
@@ -59,7 +60,7 @@ def overlay(frame: np.ndarray, intent, macro, out) -> np.ndarray:
     if intent.move:
         from ..core.game_state import DIRECTION_VECTORS
 
-        c = np.array([958, 668])
+        c = np.array(foot, int)
         d = DIRECTION_VECTORS[intent.move] * np.array([1, -1])
         cv2.arrowedLine(vis, tuple(c), tuple((c + d * 160).astype(int)), (0, 255, 255), 6, tipLength=0.3)
     for tr in out.tracks:
@@ -128,7 +129,7 @@ def main(argv: list[str] | None = None) -> None:
                 rep = controller.apply(t, intent, ev)
                 ctx.update(t, controller.current_dir, rep.r_pressed, DECISION_DT)
             if args.out or args.show:
-                vis = overlay(frame, intent, macro, out)
+                vis = overlay(frame, intent, macro, out, vision.camera.foot_px, vision.pitch.estimate())
                 if args.out:
                     small = cv2.resize(vis, None, fx=0.5, fy=0.5)
                     if writer is None:

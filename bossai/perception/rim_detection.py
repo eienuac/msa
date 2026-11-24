@@ -98,11 +98,12 @@ class RimDetector:
         g = self.projector.to_ground(px)
         ok = ~np.isnan(g).any(1)
         ok[ok] = np.linalg.norm(g[ok], axis=1) < st.max_ground_dist
-        g = g[ok]
+        g, px = g[ok], px[ok]
         if len(g) < 40:
             return []
         out = []
         for c, rad in self._find_circles(g, m):
+            on_rim = np.abs(np.linalg.norm(g - c, axis=1) - rad) < 2 * st.tol
             ang = np.linspace(0, 2 * np.pi, 64, endpoint=False)
             poly = self.projector.to_pixels(c + rad * np.stack([np.cos(ang), np.sin(ang)], 1)).astype(np.float32)
             x0, y0 = poly.min(0)
@@ -116,6 +117,7 @@ class RimDetector:
                     ellipse=cv2.fitEllipse(poly) if len(poly) >= 5 else None,
                     ellipse_iou=1.0,
                     kind="ellipse",
+                    rim_px=px[on_rim].astype(np.float32),
                 )
             )
         return out

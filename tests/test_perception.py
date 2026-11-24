@@ -325,3 +325,104 @@ def test_player_fire_ring_is_not_a_warning(name):
     from bossai.perception.rim_detection import RimDetector
 
     assert RimDetector().detect(frame(name)) == []
+
+
+class TestAutoCamera:
+    """The user tilts the camera with right-click drag, and the follow camera lags
+    behind the character: both are measured from the frames."""
+
+    def test_tilt_keeps_the_follow_camera(self):
+        from bossai.perception.calibration import CameraModel
+
+        cam = CameraModel()
+        tilted = cam.with_pitch(25.0)
+        assert tilted.height_m > cam.height_m  # the camera orbits up around the character
+        assert abs(tilted.foot_px[1] - cam.foot_px[1]) < 15  # the character stays put on screen
+        back = tilted.with_pitch(cam.pitch_deg)
+        assert back.height_m == pytest.approx(cam.height_m)
+        assert back.foot_px[1] == pytest.approx(cam.foot_px[1])
+
+    @pytest.mark.parametrize("true_pitch", [14.0, 19.0, 24.0, 30.0])
+    def test_pitch_from_a_ground_circle(self, true_pitch):
+        from bossai.perception.calibration import CameraModel
+        from bossai.perception.pitch_estimate import PitchEstimator
+
+        cam = CameraModel()
+        truth = GroundProjector(cam.with_pitch(true_pitch))
+        rng = np.random.default_rng(1)
+        est = PitchEstimator()
+        for k, (centre, r) in enumerate([((0.0, 0.0), 3.8), ((2.0, 4.0), 3.0), ((-3.0, 2.0), 4.5)]):
+            ang = np.linspace(0, 2 * np.pi, 120, endpoint=False)
+            px = truth.to_pixels(np.array(centre) + r * np.stack([np.cos(ang), np.sin(ang)], 1))
+            px += rng.normal(0, 1.0, px.shape)
+            for i in range(3):
+                assert est.observe(px, cam, t=0.2 * (3 * k + i), key=k) is not None
+        assert est.estimate() == pytest.approx(true_pitch, abs=1.0)
+
+    def test_pitch_needs_enough_evidence_and_rejects_non_circles(self):
+        from bossai.perception.calibration import CameraModel
+        from bossai.perception.pitch_estimate import PitchEstimator
+
+        est = PitchEstimator()
+        square = np.array([[800, 600], [1100, 600], [1100, 750], [800, 750]], float)
+        square = np.concatenate([np.linspace(square[i], square[(i + 1) % 4], 30) for i in range(4)])
+        assert est.observe(square, CameraModel(), 0.0) is None
+        assert est.estimate() is None
+
+    def test_pitch_from_recorded_circles(self):
+        # Kor Bekçi fight 1: circles around the player at 1.2-1.7 s
+        from bossai.perception.pitch_estimate import PitchConfig, PitchEstimator
+        from bossai.perception.vision import VisionConfig
+
+        pipe = VisionPipeline(VisionConfig(read_boss_text=False))
+        est = PitchEstimator(PitchConfig(min_weight=0.5))
+        for i, name in enumerate(["v1_01.20.jpg", "v1_01.45.jpg", "v1_01.70.jpg"]):
+            img = frame(name)
+            for d in HazardDetector().detect(img):
+                px = pipe._circle_px(d, img.shape[1], img.shape[0])
+                if px is not None:
+                    assert est.observe(px, pipe.camera, t=0.3 * i) is not None
+        p = est.estimate()
+        assert p is not None and 15.0 <= p <= 21.0  # the whole clip gives ~19
+
+    def test_anchor_reads_the_overhead_bar(self):
+        from bossai.perception.player_anchor import PlayerAnchor
+
+        a = PlayerAnchor()
+        dx, dy = a.update(frame("v1_00.30.jpg"), 0.0)
+        assert abs(dx) < 6 and abs(dy) < 6  # camera at rest
+        a.reset()
+        dx, dy = a.update(frame("v1_02.60.jpg"), 0.0)  # mid-dash: the camera lags behind
+        assert dx < -20 and dy < -50
+
+    def test_anchor_ignores_a_teammate_and_confirms_jumps(self):
+        from bossai.perception.player_anchor import PlayerAnchor
+
+        def bars(*pos):
+            img = np.full((1080, 1920, 3), 90, np.uint8)
+            for x, y in pos:
+                img[y - 3 : y + 3, x - 45 : x + 45] = (30, 30, 220)  # red (BGR)
+                img[y + 4 : y + 8, x - 45 : x + 45] = (220, 120, 40)  # blue
+            return img
+
+        a = PlayerAnchor()
+        dx, dy = a.update(bars((960, 512), (1150, 380)), 0.0)
+        assert abs(dx) < 2 and abs(dy) < 2
+        # own bar hidden for a frame, teammate visible: a single far detection is not believed
+        dx, dy = a.update(bars((1150, 380)), 0.03)
+        assert abs(dx) < 2 and abs(dy) < 2
+        # the camera lags while dashing: a small move is followed at once
+        for i in range(3):
+            dx, dy = a.update(bars((1000, 500), (1150, 380)), 0.06 + 0.03 * i)
+        assert dx == pytest.approx(40, abs=2) and dy == pytest.approx(-12, abs=2)
+        assert a.update(np.full((1080, 1920, 3), 90, np.uint8), 2.0) is None  # lost
+
+    def test_pipeline_follows_the_character(self):
+        from bossai.perception.vision import VisionConfig
+
+        pipe = VisionPipeline(VisionConfig(read_boss_text=False))
+        pipe.process(frame("v1_02.60.jpg"), 0.0)
+        assert pipe.camera.foot_px[1] < 640  # moved up with the bar
+        fixed = VisionPipeline(VisionConfig(read_boss_text=False, auto_camera=False))
+        fixed.process(frame("v1_02.60.jpg"), 0.0)
+        assert fixed.camera.foot_px == (958.0, 668.0)

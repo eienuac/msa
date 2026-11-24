@@ -49,16 +49,20 @@ See README.md for the module map and commands.
   add phase (33), a poison wave (11, ~13 s), banners "YAVRULAR YAĞIYOR", "İPEK
   PORTALI KIRILDI", "DUVARLAR YENİDEN KIRILIYOR", a red-orange variant (44).
   The orange/white fire ring around the character is the user's own skill
-  (confirmed by the user), not a warning; the rim rule rejects it (V>235 / S<115). Camera zoom in these clips differs from the Kor Bekçi clips
-  (character higher on screen) → the ground projection's foot point is off until
-  recalibrated with a clip at the same camera setting.
+  (confirmed by the user), not a warning; the rim rule rejects it (V>235 / S<115).
+  The overhead bars sit at the same screen point as in the Kor Bekçi clips
+  (~(960, 512)), so the camera setting is the same apart from pitch.
 - Spider, confirmed by the user: the green warnings (rings, filled disc, poison wave,
   beams) deal damage — harmless at full HP, dangerous at low HP. The red spider is
   phase 2 of the green one (same fight). The 11/22/33/44 clips are party fights
   (a second player is present). The camera is always at maximum zoom-out, but the
   user sometimes rotates it with right-click drag, which can also change the pitch
-  → camera pitch is not constant across or within fights; ground projection needs
-  per-fight (ideally automatic) calibration.
+  → camera pitch is not constant across or within fights. Handled by
+  `VisionConfig.auto_camera` (default on): `PitchEstimator` fits pitch from whole
+  ground circles (Kor Bekçi fight 1 ~19.4°, fight 2 ~23.4°) and `PlayerAnchor`
+  follows the overhead red/blue bar, because the follow camera lags 30-80 px
+  behind the character while walking/dashing. `CameraModel.with_pitch` keeps the
+  follow-camera geometry (pivot ~1.7, arm ~13.2 units).
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),
   player/boss HP bars, Q icon digits. Arrow direction is not read yet.
 

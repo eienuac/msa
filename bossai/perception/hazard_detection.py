@@ -78,6 +78,7 @@ class ScreenHazard:
     mean_strength: float = 0.0
     strength_sample: np.ndarray | None = None  # colour strength of up to 4000 region pixels
     raw_contour: np.ndarray | None = None  # outline without convex hulls (keeps circle arcs)
+    rim_px: np.ndarray | None = None  # pixels on the rim of a ground circle (rim style), for pitch estimation
 
     @property
     def center(self) -> np.ndarray:

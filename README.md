@@ -155,6 +155,8 @@ Ajan son saniyeyi beklememeli. Ödülde bunun için üç terim var:
 | Dash durumu | Q ikonunun rengi + küçük şarj rakamı (şablon eşleme) | 4 videoda tüm şarj/kilit geçişleri |
 | Boss mesafesi, hedef adı | RapidOCR + son 3 okumanın ortancası | tek karede 30/33 doğru |
 | Tehlike alanları | Renk tonu + dışbükey bölge + takip + dolum hızı | 4 uyarıda patlama ±0,3 sn |
+| Oyuncunun ekrandaki yeri | Kafa üstündeki kırmızı can + mavi mana barı; zemin izdüşümü buna göre kayar | kamera yürürken/dash'te 30-80 px geride kalıyor; bar 6 kaydın hepsinde dinlenme noktasında (960, 512) |
+| Kamera eğimi | Yerdeki daireler ancak doğru eğimle zemine geri çizilince daire olur; savaş boyunca biriktirilir, eski kanıt 30 sn'de yarıya iner | Kor Bekçi savaş 1: 19,4°, savaş 2: 23,4° (tek tek daireler ±1°) |
 
 ## Boss profilleri
 
@@ -174,6 +176,6 @@ python tools/analyze_video.py kayit.mp4 --boss orumcek_ana --out analysis
 - Boss'un **yönü** okunmuyor; mesafe biliniyor, yön "ileride" varsayılıyor. Oku okuyan bir glif dedektörü ya da boss dedektörü gerekiyor.
 - Çağırma saldırısından sonra hedefin yan yaratığa geçtiği OCR ile anlaşılıyor, ama ajanın boss'u yeniden seçmesi için "boss'un yanına git + R" dışında bir yol modellenmedi.
 - Gölge modda tuşa basılmadığı için makro durum makinesi basışların "kaybolduğunu" görüp kendini kilitliyor. Bu beklenen bir durum; canlı kontrolde oluşmaz.
-- Ekranda birbirine değen birden fazla daire tek bölge olarak birleşiyor; daireleri tek tek ayırma gerekiyor.
-- Kamera modelinin ölçeği varsayıma dayanıyor. Bir kalibrasyon kaydıyla netleşecek.
-- Görüntü işleme tek çekirdekte ~33 ms/kare sürüyor. Hedef ≤15 ms.
+- Kamera eğimi yalnızca tam görünen dairelerden ölçülüyor; ilk dairelere kadar varsayılan eğim (19°) kullanılıyor. Yelpaze ve çizgi saldırıları katkı vermiyor. Örümceğin kenar halkaları çoğunlukla yarım yay olarak göründüğü için eğimi net belirlemiyor; filtre bunları reddediyor, örümcekte varsayılan eğim kalıyor.
+- Kameranın sağ tıkla **yatay** döndürülmesi zemin ölçümünü bozmaz (zemin koordinatları kameraya göre), ama boss'un yönü kamera yönüne göre okunmalı.
+- Görüntü işleme Kor Bekçi'de ~11-15 ms/kare, örümcek kenar halkası tespitiyle ~50-60 ms/kare.
