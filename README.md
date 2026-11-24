@@ -178,4 +178,4 @@ python tools/analyze_video.py kayit.mp4 --boss orumcek_ana --out analysis
 - Gölge modda tuşa basılmadığı için makro durum makinesi basışların "kaybolduğunu" görüp kendini kilitliyor. Bu beklenen bir durum; canlı kontrolde oluşmaz.
 - Kamera eğimi yalnızca tam görünen dairelerden ölçülüyor; ilk dairelere kadar varsayılan eğim (19°) kullanılıyor. Yelpaze ve çizgi saldırıları katkı vermiyor. Örümceğin kenar halkaları çoğunlukla yarım yay olarak göründüğü için eğimi net belirlemiyor; filtre bunları reddediyor, örümcekte varsayılan eğim kalıyor.
 - Kameranın sağ tıkla **yatay** döndürülmesi zemin ölçümünü bozmaz (zemin koordinatları kameraya göre), ama boss'un yönü kamera yönüne göre okunmalı.
-- Görüntü işleme Kor Bekçi'de ~11-15 ms/kare, örümcek kenar halkası tespitiyle ~50-60 ms/kare.
+- Görüntü işleme tek çekirdekte Kor Bekçi'de ~11-15 ms/kare, örümcekte ~28 ms/kare (kenar halkası maskesi OpenCV'nin doymalı uint8 işlemleriyle; numpy ile 106 ms idi).

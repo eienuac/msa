@@ -56,9 +56,14 @@ class PlayerAnchor:
         roi = frame[int(y0 * sy) : int(y1 * sy), int(x0 * sx) : int(x1 * sx)]
         if (w, h) != (1920, 1080):
             roi = cv2.resize(roi, (x1 - x0, y1 - y0))
-        b, g, r = (roi[..., i].astype(np.int16) for i in range(3))
-        red = ((r > 140) & (r > g + 70) & (r > b + 50)).astype(np.uint8)
-        blue = ((b > 140) & (b > r + 50)).astype(np.uint8)
+        b, g, r = cv2.split(roi)
+
+        def above(img: np.ndarray, thr: int) -> np.ndarray:
+            return cv2.threshold(img, thr, 1, cv2.THRESH_BINARY)[1]
+
+        # saturating uint8 differences: r - g > 70 etc.
+        red = above(r, 140) & above(cv2.subtract(r, g), 70) & above(cv2.subtract(r, b), 50)
+        blue = above(b, 140) & above(cv2.subtract(b, r), 50)
         n, _, st, _ = cv2.connectedComponentsWithStats(red)
         nb, _, stb, _ = cv2.connectedComponentsWithStats(blue)
         blues = [stb[j] for j in range(1, nb) if 2 <= stb[j][3] <= 10 and stb[j][2] >= self.cfg.min_width // 2]
