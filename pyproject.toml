@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "bossai"
+version = "0.1.0"
+description = "Reinforcement-learning boss fight agent: vision, simulation, PPO training"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.9",
+    "gymnasium>=1.0",
+    "stable-baselines3>=2.3",
+    "sb3-contrib>=2.3",
+    "torch>=2.2",
+    "pyyaml>=6",
+    "pandas>=2",
+    "tensorboard>=2.15",
+]
+
+[project.optional-dependencies]
+windows = ["dxcam>=0.0.5", "mss>=9"]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["bossai*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

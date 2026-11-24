@@ -1,0 +1,194 @@
+"""Simulation parameters.
+
+Values marked (video) come from the Kor Bekçi recordings; the others are
+placeholders to be replaced by calibration recordings. Every (lo, hi) pair
+is sampled once per episode (domain randomisation).
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field, fields, replace
+from pathlib import Path
+
+import numpy as np
+
+Rng = tuple[float, float]
+
+
+def sample(rng: np.random.Generator, r: Rng | float) -> float:
+    if isinstance(r, (int, float)):
+        return float(r)
+    lo, hi = r
+    return float(lo if hi <= lo else rng.uniform(lo, hi))
+
+
+@dataclass(frozen=True)
+class SkillSpec:
+    name: str
+    weight: float
+    telegraph: Rng = (1.0, 1.5)  # (video) 1.1-1.5 s for circles and cones
+    damage: Rng = (0.12, 0.25)  # (video) 180-390 of 1570 HP per circle hit
+    radius: Rng = (3.5, 5.0)
+    count: Rng = (1, 1)
+    half_angle_deg: Rng = (60, 90)  # (video) cones look like 120-180 degree fans
+    width: Rng = (2.0, 3.0)
+    stagger: Rng = (0.0, 0.0)
+    ring: Rng = (5.0, 7.0)  # hidden_burst: distance of the bursts from the boss
+    hidden: bool = False  # no ground telegraph; only a boss wind-up cue
+
+
+SKILLS_ALL: dict[str, SkillSpec] = {
+    "circle_on_player": SkillSpec("circle_on_player", 1.0, radius=(3.5, 5.0)),
+    "cone": SkillSpec("cone", 0.8, radius=(7.0, 10.0), telegraph=(1.0, 1.5)),
+    "nova": SkillSpec("nova", 0.5, radius=(5.0, 8.0), telegraph=(1.2, 1.8)),
+    "rain": SkillSpec(
+        "rain", 0.6, radius=(2.0, 3.5), count=(3, 6), telegraph=(1.2, 1.8), damage=(0.08, 0.15), stagger=(0.0, 0.4)
+    ),
+    "line": SkillSpec("line", 0.5, radius=(12.0, 18.0), width=(2.0, 3.0), telegraph=(0.8, 1.2)),
+    "hidden_burst": SkillSpec(
+        "hidden_burst", 0.5, radius=(1.5, 2.2), count=(4, 5), telegraph=(0.8, 1.2), damage=(0.12, 0.2), hidden=True
+    ),
+}
+
+
+@dataclass(frozen=True)
+class NoiseSpec:
+    center_sigma: float = 0.0  # metres
+    radius_rel_sigma: float = 0.0
+    tti_sigma: float = 0.0  # seconds
+    miss_prob: float = 0.0  # chance a hazard is never detected
+    late_detect: Rng = (0.0, 0.0)  # seconds before a new hazard becomes visible
+    false_pos_rate: float = 0.0  # per second
+    boss_pos_sigma: float = 0.0
+    hp_sigma: float = 0.0
+    indicator_flip: float = 0.0  # chance per tick the macro indicator is misread
+    latency: Rng = (0.0, 0.0)  # seconds between the game state and what the agent sees
+    use_fov: bool = False
+
+
+@dataclass(frozen=True)
+class SimConfig:
+    level: int = 0
+    dt: float = 0.05
+    decision_dt: float = 0.1
+    max_time: float = 240.0
+    arena_radius: Rng = (18.0, 25.0)
+    # player
+    walk_speed: Rng = (4.5, 6.5)
+    accel_time: Rng = (0.03, 0.12)
+    hitbox: float = 0.4
+    dash_distance: Rng = (4.0, 7.0)
+    dash_duration: Rng = (0.2, 0.3)
+    dash_charges: int = 3  # (video)
+    dash_gap: Rng = (0.4, 0.9)  # (video) "0,x" countdown between dashes
+    dash_charge_regen: Rng = (3.5, 4.5)  # (video) ~4 s per charge
+    dash_empty_lockout: Rng = (7.5, 9.0)  # (video) ~8 s after the third dash
+    dash_iframes: bool = False  # unknown; keep False so the agent never relies on it
+    # boss
+    kill_time: Rng = (70.0, 110.0)  # seconds of uninterrupted macro damage (video: whole fight ~130 s)
+    boss_speed: Rng = (1.5, 3.0)
+    boss_hitbox: Rng = (1.2, 1.8)
+    melee_range: Rng = (2.0, 3.0)  # (video) boss shows "2 m" while being hit
+    skill_interval: Rng = (5.0, 8.0)  # (video) ~7 s between attacks
+    enrage_below: float = 0.4  # boss HP fraction where attacks speed up
+    enrage_speedup: float = 0.75
+    skills: tuple[str, ...] = ("circle_on_player",)
+    skill_overrides: dict = field(default_factory=dict)
+    # macro (R)
+    macro_latency: Rng = (0.1, 0.35)
+    macro_press_loss: float = 0.02
+    macro_move_cancels_prob: float = 0.3  # unknown; randomised per episode
+    attack_resume: Rng = (0.2, 0.5)  # standing time before the first hit lands
+    noise: NoiseSpec = field(default_factory=NoiseSpec)
+
+    def skill(self, name: str) -> SkillSpec:
+        base = SKILLS_ALL[name]
+        over = self.skill_overrides.get(name)
+        return replace(base, **over) if over else base
+
+    def with_level(self, level: int) -> "SimConfig":
+        return level_config(level, base=self)
+
+
+def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
+    """Curriculum presets: 0 = one slow circle type, 4 = everything + full noise."""
+    b = base or SimConfig()
+    level = int(np.clip(level, 0, 4))
+    if level == 0:
+        return replace(
+            b,
+            level=0,
+            skills=("circle_on_player",),
+            skill_interval=(5.0, 8.0),
+            skill_overrides={"circle_on_player": {"telegraph": (1.6, 2.0)}},
+            noise=NoiseSpec(),
+        )
+    if level == 1:
+        return replace(
+            b,
+            level=1,
+            skills=("circle_on_player", "cone", "nova"),
+            skill_interval=(4.5, 7.5),
+            skill_overrides={},
+            noise=NoiseSpec(center_sigma=0.1, tti_sigma=0.03, latency=(0.0, 0.05)),
+        )
+    if level == 2:
+        return replace(
+            b,
+            level=2,
+            skills=("circle_on_player", "cone", "nova", "rain", "line"),
+            skill_interval=(4.5, 7.5),
+            skill_overrides={},
+            noise=NoiseSpec(
+                center_sigma=0.2,
+                radius_rel_sigma=0.04,
+                tti_sigma=0.06,
+                miss_prob=0.01,
+                late_detect=(0.0, 0.1),
+                boss_pos_sigma=0.3,
+                hp_sigma=0.01,
+                indicator_flip=0.005,
+                latency=(0.0, 0.1),
+                use_fov=True,
+            ),
+        )
+    noise = NoiseSpec(
+        center_sigma=0.3,
+        radius_rel_sigma=0.06,
+        tti_sigma=0.1,
+        miss_prob=0.03,
+        late_detect=(0.0, 0.15),
+        false_pos_rate=0.05,
+        boss_pos_sigma=0.4,
+        hp_sigma=0.015,
+        indicator_flip=0.01,
+        latency=(0.05, 0.2),
+        use_fov=True,
+    )
+    return replace(
+        b,
+        level=level,
+        skills=tuple(SKILLS_ALL),
+        skill_interval=(4.5, 7.5) if level == 3 else (3.5, 6.0),
+        skill_overrides={},
+        noise=noise,
+    )
+
+
+def load_yaml(path: str | Path) -> SimConfig:
+    """Load overrides from YAML (keys = SimConfig fields; `level` applies a preset first)."""
+    import yaml
+
+    data = yaml.safe_load(Path(path).read_text()) or {}
+    cfg = level_config(int(data.pop("level", 0)))
+    noise = data.pop("noise", None)
+    valid = {f.name for f in fields(SimConfig)}
+    kw = {}
+    for k, v in data.items():
+        if k not in valid:
+            raise KeyError(f"unknown sim config key: {k}")
+        kw[k] = tuple(v) if isinstance(v, list) else v
+    cfg = replace(cfg, **kw)
+    if noise:
+        cfg = replace(cfg, noise=replace(cfg.noise, **{k: tuple(v) if isinstance(v, list) else v for k, v in noise.items()}))
+    return cfg
