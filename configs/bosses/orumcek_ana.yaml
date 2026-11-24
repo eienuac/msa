@@ -10,4 +10,4 @@ rim_style:
   min_visible_coverage: 0.6
 default_telegraph: 1.1            # big ring around the boss: ~1.0-1.2 s before the poison wave
 min_confirm_age: 0.2              # rims must persist; single-frame circles are noise
-sim_config: null                  # mechanics not confirmed yet (see CLAUDE.md)
+sim_config: configs/orumcek_ana_sim.yaml

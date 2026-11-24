@@ -1,0 +1,18 @@
+# Simulator profile for Örümcek Ana (spider). Character numbers (walk, dash, macro)
+# are the user's character and are shared with Kor Bekçi.
+# Confirmed by the user: green warnings deal damage (dangerous at low HP); the red
+# spider is phase 2 of the same fight. Damage values, the cocoon stun and the
+# lock-before-impact of the following ring are assumptions until measured.
+level: 0
+boss_skills: [follow_ring, boss_disc, poison_wave, beams, spawn_adds]   # curriculum adds them in this order
+skill_interval: [4.5, 7.0]
+enrage_below: 0.5          # red phase 2
+enrage_speedup: 0.8
+kill_time: [70, 110]
+dash_charges: 3
+dash_gap: [0.9, 1.05]
+dash_charge_regen: [3.0, 3.8]
+dash_empty_lockout: [7.5, 8.5]
+walk_speed: [8.5, 11.0]
+dash_distance: [4.5, 6.5]
+dash_duration: [0.25, 0.35]

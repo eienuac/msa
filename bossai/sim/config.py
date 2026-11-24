@@ -37,6 +37,8 @@ class SkillSpec:
     knockback: Rng = (0.0, 0.0)  # metres the player is pushed away from the boss
     knockback_radius: float = 0.0  # only players closer than this to the boss are pushed
     target_steal_prob: float = 0.0  # chance the summoned adds take over the player's target
+    follow: Rng = (0.0, 0.0)  # seconds the zone follows the player before it locks in place
+    stun: Rng = (0.0, 0.0)  # seconds the player cannot move or dash after being hit
 
 
 SKILLS_ALL: dict[str, SkillSpec] = {
@@ -51,6 +53,25 @@ SKILLS_ALL: dict[str, SkillSpec] = {
     "summon_burst": SkillSpec(
         "summon_burst", 0.4, telegraph=(0.8, 1.2), damage=(0.0, 0.0), hidden=True,
         knockback=(1.0, 2.0), knockback_radius=6.0, target_steal_prob=0.5,
+    ),
+    # ---- Örümcek Ana (spider). Green warnings deal damage (user); exact numbers unknown.
+    # Ring that follows the player ~2 s, then the player is wrapped in a web cocoon
+    # (recordings). Assumed: it locks shortly before impact and a hit stuns.
+    "follow_ring": SkillSpec(
+        "follow_ring", 0.6, radius=(2.5, 3.5), telegraph=(2.2, 2.6), follow=(1.3, 1.7),  # leaves 0.5-1.3 s to step out
+        damage=(0.08, 0.15), stun=(1.0, 1.5),
+    ),
+    # filled pale-green disc at the boss (recording 11, ~9.5 s)
+    "boss_disc": SkillSpec("boss_disc", 0.6, radius=(4.0, 5.5), telegraph=(1.0, 1.4), damage=(0.12, 0.2)),
+    # huge ring around the boss, then a poison wave over it (~1.0-1.2 s, clips b2_3 / 11)
+    "poison_wave": SkillSpec("poison_wave", 0.4, radius=(9.0, 13.0), telegraph=(1.0, 1.2), damage=(0.15, 0.25)),
+    # long green beams across the arena (recording 33)
+    "beams": SkillSpec(
+        "beams", 0.5, radius=(25.0, 35.0), width=(1.5, 2.5), count=(2, 4), telegraph=(1.0, 1.4), damage=(0.1, 0.18)
+    ),
+    # "YAVRULAR YAĞIYOR": small spiders appear and may take the target
+    "spawn_adds": SkillSpec(
+        "spawn_adds", 0.3, telegraph=(0.8, 1.2), damage=(0.0, 0.0), hidden=True, target_steal_prob=0.4,
     ),
 }
 
@@ -101,6 +122,7 @@ class SimConfig:
     skills: tuple[str, ...] = ("circle_on_player",)
     skill_overrides: dict = field(default_factory=dict)  # user/boss overrides, kept across levels
     level_overrides: dict = field(default_factory=dict)  # set by the curriculum preset only
+    boss_skills: tuple[str, ...] | None = None  # this boss's skill list; levels use growing subsets of it
     # macro (R)
     macro_latency: Rng = (0.1, 0.35)
     macro_press_loss: float = 0.02
@@ -128,11 +150,18 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
     """Curriculum presets: 0 = one slow circle type, 4 = everything + full noise."""
     b = base or SimConfig()
     level = int(np.clip(level, 0, 4))
+    bs = b.boss_skills
+
+    def pick(n: int | None, default: tuple[str, ...]) -> tuple[str, ...]:
+        if not bs:
+            return default
+        return tuple(bs) if n is None else tuple(bs[:n])
+
     if level == 0:
         return replace(
             b,
             level=0,
-            skills=("circle_on_player",),
+            skills=pick(1, ("circle_on_player",)),
             skill_interval=(5.0, 8.0),
             level_overrides={"circle_on_player": {"telegraph": (1.6, 2.0)}},
             noise=NoiseSpec(),
@@ -141,7 +170,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
         return replace(
             b,
             level=1,
-            skills=("circle_on_player", "cone", "nova"),
+            skills=pick(2, ("circle_on_player", "cone", "nova")),
             skill_interval=(4.5, 7.5),
             level_overrides={},
             noise=NoiseSpec(center_sigma=0.1, tti_sigma=0.03, latency=(0.0, 0.05)),
@@ -150,7 +179,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
         return replace(
             b,
             level=2,
-            skills=("circle_on_player", "cone", "nova", "rain", "line"),
+            skills=pick(4, ("circle_on_player", "cone", "nova", "rain", "line")),
             skill_interval=(4.5, 7.5),
             level_overrides={},
             noise=NoiseSpec(
@@ -182,7 +211,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
     return replace(
         b,
         level=level,
-        skills=tuple(SKILLS_ALL),
+        skills=pick(None, ("circle_on_player", "cone", "nova", "rain", "line", "summon_burst")),
         skill_interval=(4.5, 7.5) if level == 3 else (3.5, 6.0),
         level_overrides={},
         noise=noise,
@@ -194,7 +223,7 @@ def load_yaml(path: str | Path) -> SimConfig:
     import yaml
 
     data = yaml.safe_load(Path(path).read_text()) or {}
-    cfg = level_config(int(data.pop("level", 0)))
+    level = int(data.pop("level", 0))
     noise = data.pop("noise", None)
     valid = {f.name for f in fields(SimConfig)}
     kw = {}
@@ -202,7 +231,9 @@ def load_yaml(path: str | Path) -> SimConfig:
         if k not in valid:
             raise KeyError(f"unknown sim config key: {k}")
         kw[k] = tuple(v) if isinstance(v, list) else v
-    cfg = replace(cfg, **kw)
+    # preset computed with the boss's own skill list, then the file's values on top
+    cfg = level_config(level, replace(SimConfig(), **kw))
+    cfg = replace(cfg, **{k: v for k, v in kw.items() if k != "skills"})
     if noise:
         cfg = replace(cfg, noise=replace(cfg.noise, **{k: tuple(v) if isinstance(v, list) else v for k, v in noise.items()}))
     return cfg

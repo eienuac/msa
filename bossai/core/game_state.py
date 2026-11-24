@@ -60,6 +60,7 @@ class Hazard:
     confidence: float = 1.0
     skill: str = ""
     vertices: np.ndarray | None = None  # POLYGON only, (M,2) ground coordinates
+    following: bool = False  # still tracking the player (cannot be left yet)
 
     def __post_init__(self) -> None:
         self.center = np.asarray(self.center, dtype=np.float64).reshape(2)
@@ -139,6 +140,7 @@ class Hazard:
             confidence=self.confidence,
             skill=self.skill,
             vertices=None if self.vertices is None else self.vertices.copy(),
+            following=self.following,
         )
 
 

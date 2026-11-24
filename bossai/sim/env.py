@@ -130,7 +130,7 @@ class BossFightEnv(gym.Env):
 
         prev_truth = self._truth
         in_danger_true = any(
-            h.contains(prev_truth.player.pos[None], margin=0.4)[0] and h.phase == HazardPhase.TELEGRAPH
+            h.contains(prev_truth.player.pos[None], margin=0.4)[0] and h.phase == HazardPhase.TELEGRAPH and not h.following
             for h in prev_truth.hazards
         )
         urgent_true = any(

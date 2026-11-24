@@ -59,10 +59,18 @@ def summarize(eps: list[dict]) -> dict:
     }
 
 
-def evaluate(policies: list[BasePolicy], levels: list[int], episodes: int) -> dict:
+def make_env(level: int, sim_config: str | None = None) -> BossFightEnv:
+    if sim_config:
+        from ..sim.config import load_yaml
+
+        return BossFightEnv(cfg=load_yaml(sim_config), level=level)
+    return BossFightEnv(level=level)
+
+
+def evaluate(policies: list[BasePolicy], levels: list[int], episodes: int, sim_config: str | None = None) -> dict:
     report: dict = {}
     for level in levels:
-        env = BossFightEnv(level=level)
+        env = make_env(level, sim_config)
         for pol in policies:
             eps = [run_episode(env, pol, SEED_BASE + level * 1000 + i) for i in range(episodes)]
             report.setdefault(f"level_{level}", {})[pol.name] = {"summary": summarize(eps), "episodes": eps}
@@ -96,6 +104,7 @@ def main(argv: list[str] | None = None) -> dict:
     ap.add_argument("--levels", type=int, nargs="+", default=[0, 2, 4])
     ap.add_argument("--episodes", type=int, default=10)
     ap.add_argument("--baselines", action="store_true")
+    ap.add_argument("--sim-config", default=None, help="boss simulator profile, e.g. configs/orumcek_ana_sim.yaml")
     ap.add_argument("--video", choices=["worst", "first"], default=None, help="render one episode of the model to mp4")
     args = ap.parse_args(argv)
 
@@ -108,7 +117,7 @@ def main(argv: list[str] | None = None) -> dict:
         policies.append(ModelPolicy(model, "ppo"))
     if args.baselines or not policies:
         policies += [RandomPolicy(), NeverDodgePolicy(), ExpertPolicy(attack=False), ExpertPolicy()]
-    report = evaluate(policies, args.levels, args.episodes)
+    report = evaluate(policies, args.levels, args.episodes, args.sim_config)
     print_table(report)
     if args.model:
         out = Path(args.model) / "eval_report.json"
@@ -126,7 +135,7 @@ def main(argv: list[str] | None = None) -> dict:
             eps = report[f"level_{lvl}"]["ppo"]["episodes"]
             pick = min(eps, key=lambda e: e["ret"]) if args.video == "worst" else eps[0]
             frames: list = []
-            run_episode(BossFightEnv(level=lvl), ModelPolicy(model, "ppo"), pick["seed"], frames)
+            run_episode(make_env(lvl, args.sim_config), ModelPolicy(model, "ppo"), pick["seed"], frames)
             path = Path(args.model) / f"episode_level{lvl}_seed{pick['seed']}.mp4"
             save_video(frames, path)
             print(f"video: {path}")

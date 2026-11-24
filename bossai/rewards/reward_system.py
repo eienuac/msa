@@ -64,7 +64,7 @@ class RewardSystem:
         pos = s.player.pos[None]
         total = 0.0
         for h in s.hazards:
-            if h.phase != HazardPhase.TELEGRAPH:
+            if h.phase != HazardPhase.TELEGRAPH or h.following:  # a zone that follows you cannot be left yet
                 continue
             if h.contains(pos, margin=0.4)[0]:
                 total += 1.0 - min(max(h.time_to_impact, 0.0) / self.w.danger_horizon, 1.0)

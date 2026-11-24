@@ -52,6 +52,13 @@ See README.md for the module map and commands.
   (confirmed by the user), not a warning; the rim rule rejects it (V>235 / S<115). Camera zoom in these clips differs from the Kor Bekçi clips
   (character higher on screen) → the ground projection's foot point is off until
   recalibrated with a clip at the same camera setting.
+- Spider, confirmed by the user: the green warnings (rings, filled disc, poison wave,
+  beams) deal damage — harmless at full HP, dangerous at low HP. The red spider is
+  phase 2 of the green one (same fight). The 11/22/33/44 clips are party fights
+  (a second player is present). The camera is always at maximum zoom-out, but the
+  user sometimes rotates it with right-click drag, which can also change the pitch
+  → camera pitch is not constant across or within fights; ground projection needs
+  per-fight (ideally automatic) calibration.
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),
   player/boss HP bars, Q icon digits. Arrow direction is not read yet.
 

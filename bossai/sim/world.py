@@ -32,6 +32,8 @@ class SimHazard:
     resolved: bool = False
     inside: bool = False
     exit_slack: float = -1.0  # time left when the player last left the zone (-1 = never left)
+    follow_until: float = -1.0  # the zone tracks the player until this time
+    stun: float = 0.0  # seconds of stun if it hits
     active_until: float = 0.0
     # fixed perception errors for this hazard (applied by the perception model)
     missed: bool = False
@@ -100,6 +102,7 @@ class BossWorld:
         self.dash_vel = np.zeros(2)
         self.macro_on = bool(r.random() < 0.3)  # unknown start state for the agent
         self.boss_targeted = True
+        self.stunned_until = -1.0  # web cocoon: no movement, no dash
         self._target_lost = False  # an add took the target (after a summon burst)
         self._summon_at = float("inf")
         self._summon_spec = None
@@ -127,7 +130,7 @@ class BossWorld:
                 if self.rng.random() >= self.cfg.macro_press_loss:
                     self._macro_pending.append(self.t + self.macro_latency)
             elif k == "q":
-                if self.charges > 0 and self.dash_lockout <= 0 and self.dash_left <= 0 and self.move_dir:
+                if self.t >= self.stunned_until and self.charges > 0 and self.dash_lockout <= 0 and self.dash_left <= 0 and self.move_dir:
                     self._start_dash()
                     ev.dashes += 1
                 else:
@@ -171,7 +174,8 @@ class BossWorld:
             self.dash_left -= dt
             self.vel = np.zeros(2)
         else:
-            target = DIRECTION_VECTORS[self.move_dir] * self.walk_speed
+            stunned = self.t < self.stunned_until
+            target = np.zeros(2) if stunned else DIRECTION_VECTORS[self.move_dir] * self.walk_speed
             a = min(1.0, dt / max(self.accel_time, 1e-3))
             self.vel = self.vel + (target - self.vel) * a
             self.player_pos = self.player_pos + self.vel * dt
@@ -242,6 +246,9 @@ class BossWorld:
         for sh in self.hazards:
             h = sh.hz
             if not sh.resolved:
+                h.following = self.t < sh.follow_until
+                if h.following:
+                    h.center = self.player_pos.copy()  # the ring tracks the player, then locks
                 h.time_to_impact = sh.impact_t - self.t
                 inside = bool(h.contains(self.player_pos[None], margin=c.hitbox)[0])
                 if inside:
@@ -264,11 +271,17 @@ class BossWorld:
                         ev.player_damage += dmg
                         ev.hits += 1
                         ev.hit_skills.append(h.skill)
+                        if sh.stun > 0:
+                            self.stunned_until = max(self.stunned_until, self.t + sh.stun)
                         self._dmg_taken_hist.append((self.t, dmg))
                         if self.player_hp <= 1e-9:
                             ev.player_dead = True
                     elif sh.threatened:
-                        if sh.exit_slack >= c.safe_exit_slack:
+                        # a following zone can only be left after it locks: judge the exit from then on
+                        safe = c.safe_exit_slack
+                        if sh.follow_until > 0:
+                            safe = min(safe, 0.5 * (sh.impact_t - sh.follow_until))
+                        if sh.exit_slack >= safe:
                             ev.dodges += 1
                         else:
                             ev.late_dodges += 1
@@ -325,14 +338,32 @@ class BossWorld:
         elif name == "line":
             add(HazardShape.RECT, self.boss_pos, sample(r, spec.radius), direction=face, width=sample(r, spec.width))
             self.casting_until = self.t + tele
-        elif name == "summon_burst":
+        elif name == "follow_ring":
+            add(HazardShape.CIRCLE, self.player_pos.copy(), sample(r, spec.radius))
+        elif name in ("boss_disc", "poison_wave"):
+            add(HazardShape.CIRCLE, self.boss_pos.copy(), sample(r, spec.radius))
+            self.casting_until = self.t + tele
+        elif name == "beams":
+            n = int(round(sample(r, spec.count)))
+            for _ in range(n):
+                ang = r.uniform(0, 2 * math.pi)
+                u = np.array([math.cos(ang), math.sin(ang)])
+                perp = np.array([-u[1], u[0]])
+                length = sample(r, spec.radius)
+                start = self.player_pos + perp * r.uniform(-4.0, 4.0) - u * length / 2
+                add(HazardShape.RECT, start, length, direction=ang, width=sample(r, spec.width))
+        elif name in ("summon_burst", "spawn_adds"):
             self._summon_at = self.t + tele
             self._summon_spec = spec
             self._windup_start = self.t
             self._windup_until = self.t + tele
             self.casting_until = self.t + tele
+        follow = sample(r, spec.follow)
+        stun = sample(r, spec.stun)
         for h, impact, hidden in new:
-            self.hazards.append(SimHazard(h, impact, hidden=hidden))
+            self.hazards.append(
+                SimHazard(h, impact, hidden=hidden, follow_until=self.t + follow if follow > 0 else -1.0, stun=stun)
+            )
         interval = sample(r, c.skill_interval)
         if self.boss_hp < c.enrage_below:
             interval *= c.enrage_speedup

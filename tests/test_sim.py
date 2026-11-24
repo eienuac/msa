@@ -1,10 +1,13 @@
+from dataclasses import replace
+from pathlib import Path
+
 import numpy as np
 import pytest
 from gymnasium.utils.env_checker import check_env
 
 from bossai.agent.action_space import NVEC
 from bossai.evaluation.baselines import ExpertPolicy, NeverDodgePolicy
-from bossai.sim.config import SimConfig, level_config
+from bossai.sim.config import NoiseSpec, SimConfig, level_config
 from bossai.sim.env import BossFightEnv
 from bossai.sim.world import BossWorld
 
@@ -180,3 +183,56 @@ def test_level_presets_do_not_leak_between_levels():
     assert l3.skill("circle_on_player").telegraph == (1.0, 1.5)
     user = level_config(3, SimConfig(skill_overrides={"cone": {"radius": (9.0, 9.0)}}))
     assert level_config(4, user).skill("cone").radius == (9.0, 9.0)
+
+
+def _spider_world(skill: str, seed: int = 0):
+    from bossai.sim.config import load_yaml
+
+    cfg = level_config(4, load_yaml(Path(__file__).parents[1] / "configs" / "orumcek_ana_sim.yaml"))
+    cfg = replace(cfg, skills=(skill,), noise=NoiseSpec())
+    w = BossWorld(cfg, np.random.default_rng(seed))
+    w.hazards.clear()
+    w.next_skill_t = w.t  # cast on the next substep
+    return w
+
+
+def test_spider_curriculum_uses_its_own_skills():
+    from bossai.sim.config import load_yaml
+
+    cfg = load_yaml(Path(__file__).parents[1] / "configs" / "orumcek_ana_sim.yaml")
+    assert level_config(0, cfg).skills == ("follow_ring",)
+    assert set(level_config(4, cfg).skills) == {"follow_ring", "boss_disc", "poison_wave", "beams", "spawn_adds"}
+    env = BossFightEnv(cfg=cfg, level=4)
+    env.reset(seed=0)
+    for _ in range(50):
+        env.step(np.array([0, 0, 0]))
+
+
+def test_follow_ring_tracks_player_then_locks_and_stuns():
+    w = _spider_world("follow_ring")
+    w.step(set(), [], 0.1)
+    sh = next(s for s in w.hazards if s.hz.skill == "follow_ring")
+    w.step({"d"}, [], 0.5)  # walking: the ring follows
+    assert np.linalg.norm(sh.hz.center - w.player_pos) < 0.6
+    lock_t = sh.follow_until
+    w.step(set(), [], max(0.0, lock_t - w.t) + 0.1)  # past the lock: it stays where it was
+    locked = sh.hz.center.copy()
+    w.step(set(), [], 0.3)
+    np.testing.assert_allclose(sh.hz.center, locked)
+    hp = w.player_hp
+    w.step(set(), [], 3.0)  # stand in it until impact
+    assert w.player_hp < hp and w.stunned_until > 0
+    w.stunned_until = w.t + 1.0
+    before = w.player_pos.copy()
+    w.step({"w"}, ["q"], 0.5)  # stunned: no walking, no dash
+    np.testing.assert_allclose(w.player_pos, before, atol=1e-6)
+
+
+def test_beams_cross_near_the_player():
+    w = _spider_world("beams", seed=3)
+    w.step(set(), [], 0.1)
+    beams = [s.hz for s in w.hazards if s.hz.skill == "beams"]
+    assert len(beams) >= 2
+    from bossai.core.game_state import HazardShape
+
+    assert all(b.shape is HazardShape.RECT and b.radius >= 25 for b in beams)

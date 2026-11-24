@@ -29,6 +29,7 @@ def main(argv=None) -> None:
     ap.add_argument("--seconds", type=float, default=90.0)
     ap.add_argument("--title", default="")
     ap.add_argument("--out", default="sim.mp4")
+    ap.add_argument("--sim-config", default=None, help="boss simulator profile, e.g. configs/orumcek_ana_sim.yaml")
     args = ap.parse_args(argv)
 
     if args.policy == "model":
@@ -37,7 +38,9 @@ def main(argv=None) -> None:
         pol = ModelPolicy(load_model(args.model, checkpoint=args.checkpoint))
     else:
         pol = {"expert": ExpertPolicy(), "never_dodge": NeverDodgePolicy(), "random": RandomPolicy()}[args.policy]
-    env = BossFightEnv(level=args.level)
+    from bossai.evaluation.evaluate import make_env
+
+    env = make_env(args.level, args.sim_config)
     obs, _ = env.reset(seed=args.seed)
     writer = None
     done = False
