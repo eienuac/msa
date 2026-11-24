@@ -29,7 +29,7 @@ from ..control.action_controller import ActionController, AgentIntent, Controlle
 from ..control.input_backend import NullBackend
 from ..control.macro_state import MacroEvidence, MacroStateManager
 from ..core.safety import EscapeParams, SafetyPlanner
-from ..perception.vision import VisionPipeline
+from ..perception.vision import VisionConfig, VisionPipeline
 from ..training.registry import load_model
 
 DECISION_DT = 0.1
@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> None:
 
     model = load_model(args.model)
     encoder = ObservationEncoder()
-    vision = VisionPipeline()
+    vision = VisionPipeline(VisionConfig(ocr_in_background=True))
     planner = SafetyPlanner(EscapeParams())
     macro = MacroStateManager()
     if args.control:

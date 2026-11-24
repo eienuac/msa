@@ -208,3 +208,23 @@ class TestBossText:
             pytest.skip("rapidocr_onnxruntime not installed")
         info = r.read(frame("v1_28.00.jpg"), 0.0)  # HUD: "Kor Bekçi | 2 m"
         assert info.is_boss and info.distance_m == 2
+
+
+def test_background_ocr_does_not_block():
+    import time as _time
+
+    from bossai.perception.boss_reader import BossInfoReader
+
+    r = BossInfoReader(background=True)
+    if not r.available:
+        pytest.skip("rapidocr_onnxruntime not installed")
+    img = frame("v1_28.00.jpg")
+    t0 = _time.perf_counter()
+    first = r.read(img, 0.0)  # returns immediately (nothing read yet)
+    assert _time.perf_counter() - t0 < 0.05 and first is None
+    for i in range(100):
+        _time.sleep(0.05)
+        info = r.read(img, 0.05 * (i + 1))
+        if info is not None:
+            break
+    assert info is not None and info.distance_m == 2

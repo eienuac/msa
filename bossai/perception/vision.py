@@ -32,6 +32,7 @@ class VisionConfig:
     boss_keywords: tuple[str, ...] = ("kor be",)  # target name fragment that identifies the boss
     melee_range_m: float = 2.5  # HUD metres at which the macro lands hits (recordings: "2 m")
     read_boss_text: bool = True
+    ocr_in_background: bool = False  # True for live use: OCR never blocks the frame loop
 
 
 @dataclass
@@ -51,7 +52,9 @@ class VisionPipeline:
         self.tracker = HazardTracker(self.cfg.tracker)
         self.dash_reader = DashIconReader()
         self.dash_filter = DashStateFilter()
-        self.boss_reader = BossInfoReader(self.cfg.boss_keywords) if self.cfg.read_boss_text else None
+        self.boss_reader = (
+            BossInfoReader(self.cfg.boss_keywords, background=self.cfg.ocr_in_background) if self.cfg.read_boss_text else None
+        )
         self._proj: GroundProjector | None = None
         self._last_player_hp = 1.0
         self._last_boss_hp = 1.0

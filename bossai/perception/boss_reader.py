@@ -12,6 +12,7 @@ Not read yet: the arrow direction (needs a dedicated glyph detector).
 from __future__ import annotations
 
 import re
+import threading
 import unicodedata
 from collections import deque
 from dataclasses import dataclass
@@ -50,9 +51,19 @@ def parse_target_text(text: str, boss_keywords: tuple[str, ...]) -> BossInfo:
 
 
 class BossInfoReader:
-    def __init__(self, boss_keywords: tuple[str, ...] = ("kor be",), interval: float = 0.3, history: int = 3):
+    def __init__(
+        self,
+        boss_keywords: tuple[str, ...] = ("kor be",),
+        interval: float = 0.3,
+        history: int = 3,
+        background: bool = False,
+    ):
+        """background=True runs OCR in a worker thread so the frame loop never waits for it."""
         self.keywords = tuple(_fold(k) for k in boss_keywords)
         self.interval = interval
+        self.background = background
+        self._lock = threading.Lock()
+        self._busy = False
         self._last_t = -1e9
         self._dists: deque[float] = deque(maxlen=history)
         self._last: BossInfo | None = None
@@ -78,15 +89,26 @@ class BossInfoReader:
             return ""
         return " ".join(r[1] if len(r) == 3 else r[0] for r in res)
 
+    def _update(self, frame: np.ndarray) -> None:
+        info = parse_target_text(self.read_text(frame), self.keywords)
+        with self._lock:
+            if info.distance_m is not None:
+                self._dists.append(info.distance_m)
+            smoothed = float(np.median(self._dists)) if self._dists else None
+            self._last = BossInfo(info.text, smoothed, info.is_boss, info.behind)
+            self._busy = False
+
     def read(self, frame: np.ndarray, t: float) -> BossInfo | None:
         if self._ocr is None:
             return None
-        if t - self._last_t < self.interval and self._last is not None:
+        due = t - self._last_t >= self.interval or self._last is None
+        if due and not self._busy:
+            self._last_t = t
+            if self.background:
+                self._busy = True
+                band = frame.copy()
+                threading.Thread(target=self._update, args=(band,), daemon=True).start()
+            else:
+                self._update(frame)
+        with self._lock:
             return self._last
-        self._last_t = t
-        info = parse_target_text(self.read_text(frame), self.keywords)
-        if info.distance_m is not None:
-            self._dists.append(info.distance_m)
-        smoothed = float(np.median(self._dists)) if self._dists else None
-        self._last = BossInfo(info.text, smoothed, info.is_boss, info.behind)
-        return self._last
