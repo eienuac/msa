@@ -228,3 +228,35 @@ def test_background_ocr_does_not_block():
         if info is not None:
             break
     assert info is not None and info.distance_m == 2
+
+
+class TestCircleSplitting:
+    def test_ransac_recovers_overlapping_circles(self):
+        from bossai.perception.calibration import fit_circles_ransac
+
+        res = 20
+        img = np.zeros((400, 400), np.uint8)
+        truth = [((5, 5), 3.0), ((9.5, 5.5), 2.5), ((7, 9), 2.2)]
+        for (cx, cy), r in truth:
+            cv2.circle(img, (int(cx * res), int(cy * res)), int(r * res), 255, -1)
+        cs, _ = cv2.findContours(img, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        found = fit_circles_ransac(cs[0].reshape(-1, 2) / res, tol=0.25)
+        assert len(found) == 3
+        for (cx, cy), r in truth:
+            assert min(np.hypot(c[0] - cx, c[1] - cy) + abs(rr - r) for c, rr in found) < 0.3
+
+    def test_duplicate_rim_edges_merge(self):
+        from bossai.perception.calibration import merge_duplicate_circles
+
+        out = merge_duplicate_circles([(np.array([0.0, 0.0]), 4.0), (np.array([0.2, 0.1]), 3.4), (np.array([8.0, 0.0]), 2.0)])
+        assert len(out) == 2
+
+    def test_touching_rain_circles_are_split(self):
+        from bossai.perception.vision import VisionConfig, VisionPipeline
+
+        pipe = VisionPipeline(VisionConfig(read_boss_text=False))
+        pipe.process(frame("v4_12.40.jpg"), 12.40)
+        out = pipe.process(frame("v4_12.43.jpg"), 12.43)
+        circles = [h for h in out.state.hazards if h.shape is HazardShape.CIRCLE]
+        assert len(circles) >= 3  # several rain circles, not one merged blob
+        assert all(h.radius < 5.0 for h in circles)

@@ -80,3 +80,81 @@ def fit_circle(pts: np.ndarray) -> tuple[np.ndarray, float]:
     cx, cy = sol[0] / 2, sol[1] / 2
     r = math.sqrt(max(sol[2] + cx**2 + cy**2, 0.0))
     return np.array([cx, cy]), r
+
+
+def _circle_from_3(p: np.ndarray) -> tuple[np.ndarray, float] | None:
+    (x1, y1), (x2, y2), (x3, y3) = p
+    d = 2 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    if abs(d) < 1e-9:
+        return None
+    ux = ((x1**2 + y1**2) * (y2 - y3) + (x2**2 + y2**2) * (y3 - y1) + (x3**2 + y3**2) * (y1 - y2)) / d
+    uy = ((x1**2 + y1**2) * (x3 - x2) + (x2**2 + y2**2) * (x1 - x3) + (x3**2 + y3**2) * (x2 - x1)) / d
+    c = np.array([ux, uy])
+    return c, float(np.linalg.norm(p[0] - c))
+
+
+def fit_circles_ransac(
+    pts: np.ndarray,
+    r_range: tuple[float, float] = (1.0, 9.0),
+    tol: float = 0.25,
+    max_circles: int = 6,
+    min_inlier_frac: float = 0.08,
+    iters: int = 300,
+    seed: int = 0,
+    region: np.ndarray | None = None,
+    region_margin: float = 0.3,
+) -> list[tuple[np.ndarray, float]]:
+    """Find the circles whose arcs make up a closed outline (ground coordinates).
+
+    The outline of several overlapping circles consists of one arc per circle.
+    Circles are extracted greedily: the best-supported circle (most outline
+    points within `tol` of it) is kept, its points removed, and the search
+    repeats on the rest. If `region` (an outline polygon) is given, candidate
+    circles must lie inside it, which rejects big circles that only happen to
+    pass through arcs of different zones.
+    """
+    from ..core.game_state import _polygon_signed_distance
+
+    ring = np.stack([np.cos(np.linspace(0, 2 * np.pi, 24, endpoint=False)), np.sin(np.linspace(0, 2 * np.pi, 24, endpoint=False))], 1)
+    rng = np.random.default_rng(seed)
+    pts = np.asarray(pts, float)
+    remaining = pts.copy()
+    found: list[tuple[np.ndarray, float]] = []
+    n_total = len(pts)
+    while len(remaining) >= max(8, int(min_inlier_frac * n_total)) and len(found) < max_circles:
+        best, best_in = None, None
+        m = len(remaining)
+        for _ in range(iters):
+            # sample three points that are near each other along the outline (same arc)
+            i = rng.integers(m)
+            span = max(3, m // 8)
+            j, k = (i + rng.integers(1, span)) % m, (i + rng.integers(span // 2, span * 2)) % m
+            fit = _circle_from_3(remaining[[i, j, k]])
+            if fit is None:
+                continue
+            c, r = fit
+            if not (r_range[0] <= r <= r_range[1]):
+                continue
+            if region is not None and np.mean(_polygon_signed_distance(c + r * ring, region) <= region_margin) < 0.9:
+                continue
+            inl = np.abs(np.linalg.norm(remaining - c, axis=1) - r) < tol
+            if best_in is None or inl.sum() > best_in.sum():
+                best, best_in = (c, r), inl
+        if best is None or best_in.sum() < max(8, min_inlier_frac * n_total):
+            break
+        c, r = fit_circle(remaining[best_in])  # refine on the inliers
+        found.append((c, r))
+        remaining = remaining[~best_in]
+    return merge_duplicate_circles(found)
+
+
+def merge_duplicate_circles(circles: list[tuple[np.ndarray, float]], center_tol: float = 1.2, radius_tol: float = 1.2):
+    """A painted rim has an inner and an outer edge; both fit the same circle. Keep the larger."""
+    out: list[tuple[np.ndarray, float]] = []
+    for c, r in sorted(circles, key=lambda x: -x[1]):
+        if any(np.linalg.norm(c - c2) < center_tol and abs(r - r2) < radius_tol for c2, r2 in out):
+            continue
+        if any(np.linalg.norm(c - c2) + r <= r2 + 0.3 for c2, r2 in out):
+            continue  # fully inside a kept circle (inner fill or rim edge)
+        out.append((c, r))
+    return out

@@ -11,11 +11,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+import cv2
 import numpy as np
 
 from ..core.game_state import BossState, GameState, Hazard, HazardPhase, HazardShape, MacroState, PlayerState
 from .boss_reader import BossInfoReader
-from .calibration import CameraModel, GroundProjector, fit_circle
+from .calibration import CameraModel, GroundProjector, fit_circle, fit_circles_ransac
 from .dash_reader import DashIconReader, DashStateFilter
 from .hazard_detection import DetectorConfig, HazardDetector
 from .tracking import HazardTracker, TrackerConfig
@@ -32,6 +33,9 @@ class VisionConfig:
     boss_keywords: tuple[str, ...] = ("kor be",)  # target name fragment that identifies the boss
     melee_range_m: float = 2.5  # HUD metres at which the macro lands hits (recordings: "2 m")
     read_boss_text: bool = True
+    split_radius_range: tuple[float, float] = (1.0, 9.0)  # ground units
+    split_tol: float = 0.4
+    split_min_coverage: float = 0.8
     ocr_in_background: bool = False  # True for live use: OCR never blocks the frame loop
 
 
@@ -65,26 +69,79 @@ class VisionPipeline:
             self._proj = GroundProjector(self.cfg.camera.scaled(w, h))
         return self._proj
 
-    def track_to_hazard(self, tr, t: float, proj: GroundProjector) -> Hazard | None:
+    def track_to_hazards(self, tr, t: float, proj: GroundProjector) -> list[Hazard]:
+        """Ground hazards for one tracked screen region.
+
+        One circle if the outline is circular; several circles if the outline is
+        made of circular arcs (touching/overlapping zones); otherwise a polygon.
+        """
         g = proj.to_ground(tr.det.contour)
         g = g[~np.isnan(g).any(1)]
         if len(g) < 6:
-            return None
+            return []
         tti = self.tracker.time_to_impact(tr, t)
         phase = tr.phase
         center, radius = fit_circle(g)
         resid = float(np.abs(np.linalg.norm(g - center, axis=1) - radius).mean() / max(radius, 1e-6))
         if tr.det.kind == "ellipse" and resid <= self.cfg.circle_fit_max_residual:
-            return Hazard(tr.id, HazardShape.CIRCLE, center, radius, tti, phase, confidence=1.0)
+            return [Hazard(tr.id * 10, HazardShape.CIRCLE, center, radius, tti, phase)]
+        circles = []
+        if tr.det.raw_contour is not None and len(tr.det.raw_contour) >= 12:
+            graw = proj.to_ground(tr.det.raw_contour)
+            graw = graw[~np.isnan(graw).any(1)]
+            if len(graw) >= 12:
+                circles = self._split_circles(graw, g)
+        if circles:
+            return [Hazard(tr.id * 10 + k, HazardShape.CIRCLE, c, r, tti, phase) for k, (c, r) in enumerate(circles)]
         step = max(1, len(g) // 48)
-        return Hazard(tr.id, HazardShape.POLYGON, g.mean(0), float(np.ptp(g, 0).max() / 2), tti, phase, vertices=g[::step])
+        return [Hazard(tr.id * 10, HazardShape.POLYGON, g.mean(0), float(np.ptp(g, 0).max() / 2), tti, phase, vertices=g[::step])]
+
+    def _split_circles(self, g: np.ndarray, hull: np.ndarray) -> list[tuple[np.ndarray, float]]:
+        """Accept a multi-circle explanation only if it reproduces the outline.
+
+        g: hull-free outline (arcs of the individual circles), hull: the region's
+        convex-hull outline. The union of circles must lie inside the hull region
+        and fill most of it.
+        """
+        circles = fit_circles_ransac(g, r_range=self.cfg.split_radius_range, tol=self.cfg.split_tol, region=hull[:: max(1, len(hull) // 200)])
+        if len(circles) < 2:
+            return []
+        lo, hi = hull.min(0) - 1, hull.max(0) + 1
+        res = 0.1
+        size = np.ceil((hi - lo) / res).astype(int) + 1
+        if size.prod() > 4_000_000:
+            return []
+        region = np.zeros((size[1], size[0]), np.uint8)
+        cv2.fillPoly(region, [((hull - lo) / res).astype(np.int32)], 1)
+
+        def disc(c, r):
+            m = np.zeros_like(region)
+            cc = ((c - lo) / res).astype(int)
+            cv2.circle(m, (int(cc[0]), int(cc[1])), int(r / res), 1, -1)
+            return m
+
+        # drop circles that stick out of the region (a wrong arc combination)
+        kept, union = [], np.zeros_like(region)
+        for c, r in circles:
+            m = disc(c, r)
+            if (m & region).sum() / max(m.sum(), 1) >= 0.85:
+                kept.append((c, r))
+                union |= m
+        if len(kept) < 2:
+            return []
+        d = np.min([np.abs(np.linalg.norm(g - c, axis=1) - r) for c, r in kept], axis=0)
+        if np.mean(d < 2.5 * self.cfg.split_tol) < self.cfg.split_min_coverage:
+            return []
+        if union.sum() / max(region.sum(), 1) < 0.55:  # must explain most of the region
+            return []
+        return kept
 
     def process(self, frame: np.ndarray, t: float) -> VisionOutput:
         h, w = frame.shape[:2]
         proj = self._projector(w, h)
         hud = self.hud.read(frame)
         tracks = self.tracker.update(t, self.detector.detect(frame))
-        hazards = [hz for tr in tracks if (hz := self.track_to_hazard(tr, t, proj)) is not None]
+        hazards = [hz for tr in tracks for hz in self.track_to_hazards(tr, t, proj)]
 
         php = hud.player_hp if hud.player_hp is not None else self._last_player_hp
         bhp = hud.boss_hp if hud.boss_hp is not None else self._last_boss_hp

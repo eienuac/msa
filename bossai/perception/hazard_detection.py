@@ -72,6 +72,7 @@ class ScreenHazard:
     profile: np.ndarray | None = None  # colour strength per normalised radius bin (ellipses)
     mean_strength: float = 0.0
     strength_sample: np.ndarray | None = None  # colour strength of up to 4000 region pixels
+    raw_contour: np.ndarray | None = None  # outline without convex hulls (keeps circle arcs)
 
     @property
     def center(self) -> np.ndarray:
@@ -154,8 +155,14 @@ class HazardDetector:
             )
             if kind == "ellipse":
                 haz.profile = self._radial_profile(strength, gm, ell, c.profile_bins)
+            if self._raw is not None:
+                rc, _ = cv2.findContours(cv2.bitwise_and(self._raw, region), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+                if rc:
+                    haz.raw_contour = max(rc, key=cv2.contourArea).reshape(-1, 2).astype(np.float32) / s
             out.append(haz)
         return out
+
+    _raw: np.ndarray | None = None
 
     def _regions(self, small: np.ndarray, gm: np.ndarray) -> list[np.ndarray]:
         """Build one filled region per telegraph.
@@ -175,10 +182,13 @@ class HazardDetector:
         strong = cv2.morphologyEx(strong, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
         min_part = c.min_area * c.scale * c.scale * 0.05
         canvas = np.zeros_like(strong)
+        raw = np.zeros_like(strong)  # strong blobs with holes filled, no hulls (keeps arcs)
         contours, _ = cv2.findContours(strong, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         for cnt in contours:
             if cv2.contourArea(cnt) >= min_part:
                 cv2.drawContours(canvas, [cv2.convexHull(cnt)], -1, 255, -1)
+                cv2.drawContours(raw, [cnt], -1, 255, -1)
+        self._raw = raw
         if not canvas.any():
             return []
         weak = cv2.bitwise_and(c.color.mask(small, c.color.weak_contrast), gm)
