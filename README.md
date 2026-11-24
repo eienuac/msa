@@ -97,7 +97,19 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 
 `--control` bayrağı tuşları düz SendInput ile gönderir. Hiçbir gizleme veya anti-cheat atlatma içermez. Yalnızca otomasyona izin verilen ortamlarda kullanın. F12 ajanı durdurur ve tüm tuşları bırakır. Tuşlar yalnızca `--window-title` ile verilen pencere öndeyken gönderilir.
 
-## Eğitilmiş model: `pretrained/kor_bekci_v3`
+## Eğitilmiş model: `pretrained/kor_bekci_v4` (güncel)
+
+v3'ün üzerine 1 milyon adım, düzeltilmiş makro davranışıyla: yürümek makroyu her zaman değil, bazen kapatır (kayıt 33/44). Değerlendirme yeni simülasyonda, 15 görülmemiş senaryoda, seviye 4:
+
+| Politika | Kazanma | Ölüm | Öldürme süresi | İsabet/dk | Erken kaçış | Dash/dk | R/dk |
+|---|---|---|---|---|---|---|---|
+| **PPO v4** | %93 | %0 | 155 sn | 0,40 | %87 | 12,5 | 5,5 |
+| PPO v3 | %93 | %0 | 160 sn | 0,60 | %86 | 12,0 | 5,2 |
+| kural tabanlı uzman | %100 | %0 | 159 sn | 0,40 | %85 | 11,0 | 7,0 |
+
+R basışı eski simülasyondaki ~15/dk'dan ~5/dk'ya indi. Düşüşün çoğu simülasyonun düzeltilmesinden ve durum makinesinin R'ye sadece gösterge "kapalı" derken basmasından geliyor (v3 de yeni simülasyonda ~5/dk basıyor). Bu ayarlarda uzman politika kazanma oranında PPO'yu yakaladı; PPO 15 savaştan 1'ini süre dolduğu için kaybetti.
+
+## Önceki model: `pretrained/kor_bekci_v3`
 
 3,2 milyon adım (MaskablePPO, curriculum 0→4). Değerlendirme, eğitimde görülmemiş 15 sabit senaryo üzerinde yapıldı (simülasyon):
 
@@ -111,7 +123,7 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 
 Bunlar simülasyon sonuçları; gerçek oyunda henüz test edilmedi.
 
-Modeli kullanmak için `--model pretrained/kor_bekci_v3` verin.
+v4 için `--model pretrained/kor_bekci_v4` verin.
 
 ## Videolardan ölçülenler (Kor Bekçi)
 

@@ -1,0 +1,107 @@
+{
+  "level": 4,
+  "dt": 0.05,
+  "decision_dt": 0.1,
+  "max_time": 240.0,
+  "arena_radius": [
+    18.0,
+    25.0
+  ],
+  "walk_speed": [
+    8.5,
+    11.0
+  ],
+  "accel_time": [
+    0.03,
+    0.12
+  ],
+  "hitbox": 0.4,
+  "dash_distance": [
+    4.5,
+    6.5
+  ],
+  "dash_duration": [
+    0.25,
+    0.35
+  ],
+  "dash_charges": 3,
+  "dash_gap": [
+    0.9,
+    1.05
+  ],
+  "dash_charge_regen": [
+    3.0,
+    3.8
+  ],
+  "dash_empty_lockout": [
+    7.5,
+    8.5
+  ],
+  "dash_iframes": false,
+  "kill_time": [
+    70.0,
+    110.0
+  ],
+  "boss_speed": [
+    1.5,
+    3.0
+  ],
+  "boss_hitbox": [
+    1.2,
+    1.8
+  ],
+  "melee_range": [
+    2.0,
+    3.0
+  ],
+  "skill_interval": [
+    3.5,
+    6.0
+  ],
+  "enrage_below": 0.4,
+  "enrage_speedup": 0.75,
+  "skills": [
+    "circle_on_player",
+    "cone",
+    "nova",
+    "rain",
+    "line",
+    "summon_burst"
+  ],
+  "skill_overrides": {},
+  "level_overrides": {},
+  "macro_latency": [
+    0.1,
+    0.35
+  ],
+  "macro_press_loss": 0.02,
+  "macro_move_cancel_chance": [
+    0.0,
+    0.4
+  ],
+  "macro_cancel_delay": 0.05,
+  "safe_exit_slack": 0.5,
+  "attack_resume": [
+    0.2,
+    0.5
+  ],
+  "noise": {
+    "center_sigma": 0.3,
+    "radius_rel_sigma": 0.06,
+    "tti_sigma": 0.1,
+    "miss_prob": 0.03,
+    "late_detect": [
+      0.0,
+      0.15
+    ],
+    "false_pos_rate": 0.05,
+    "boss_pos_sigma": 0.4,
+    "hp_sigma": 0.015,
+    "indicator_flip": 0.01,
+    "latency": [
+      0.05,
+      0.2
+    ],
+    "use_fov": true
+  }
+}

@@ -17,7 +17,7 @@ and sends back the output and screenshots.
    It prints what vision reads (macro, HP, dash, boss distance, zones) and saves
    frames to `check_out/`. Compare with what the user sees; fix layout boxes in
    `bossai/perception/ui_reader.py` / `dash_reader.py` if needed.
-4. Shadow mode (no keys sent): `python -m bossai.runtime.live --model pretrained/kor_bekci_v3 --source dxcam --show --out shadow.mp4`
+4. Shadow mode (no keys sent): `python -m bossai.runtime.live --model pretrained/kor_bekci_v4 --source dxcam --show --out shadow.mp4`
    The user plays; the overlay shows what the agent would do. Collect cases where
    it is wrong → turn them into simulator scenarios / perception fixes.
 5. Control mode only after shadow mode looks right, only where automation is

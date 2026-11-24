@@ -1,0 +1,28 @@
+{
+  "nvec": [
+    10,
+    2,
+    3
+  ],
+  "move": [
+    "idle",
+    "N",
+    "NE",
+    "E",
+    "SE",
+    "S",
+    "SW",
+    "W",
+    "NW",
+    "to_safe"
+  ],
+  "dash": [
+    "no",
+    "yes"
+  ],
+  "macro": [
+    "keep",
+    "want_on",
+    "want_off"
+  ]
+}
