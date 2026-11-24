@@ -97,6 +97,22 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 
 `--control` bayrağı tuşları düz SendInput ile gönderir. Hiçbir gizleme veya anti-cheat atlatma içermez. Yalnızca otomasyona izin verilen ortamlarda kullanın. F12 ajanı durdurur ve tüm tuşları bırakır. Tuşlar yalnızca `--window-title` ile verilen pencere öndeyken gönderilir.
 
+## Eğitilmiş model: `pretrained/kor_bekci_v3`
+
+3,2 milyon adım (MaskablePPO, curriculum 0→4). Değerlendirme, eğitimde görülmemiş 15 sabit senaryo üzerinde yapıldı (simülasyon):
+
+| Seviye | Politika | Kazanma | Ölüm | Öldürme süresi | İsabet/dk | Erken kaçış | Dash/dk | R/dk |
+|---|---|---|---|---|---|---|---|---|
+| 4 (en zor) | **PPO ajanı** | **%100** | %0 | 155 sn | 0,21 | %88 | 12,4 | 14,9 |
+| 4 | kural tabanlı uzman | %73 | %0 | 187 sn | 0,44 | %89 | 10,7 | 19,5 |
+| 4 | hiç kaçmayan | %0 | %100 | – | 12,3 | – | 0 | 3,9 |
+| 3 | **PPO ajanı** | %100 | %0 | 149 sn | 0,48 | %88 | 9,7 | 12,0 |
+| 3 | kural tabanlı uzman | %100 | %0 | 162 sn | 0,37 | %88 | 8,7 | 18,2 |
+
+Bunlar simülasyon sonuçları; gerçek oyunda henüz test edilmedi.
+
+Modeli kullanmak için `--model pretrained/kor_bekci_v3` verin.
+
 ## Videolardan ölçülenler (Kor Bekçi)
 
 - **Uyarı süresi:** daire ve yelpaze için 1,1–1,5 sn. Boss'un saldırıları arasında ~7 sn var.

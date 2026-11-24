@@ -1,0 +1,14 @@
+{
+  "seed": 0,
+  "timesteps": 3203248,
+  "level_reached": 4,
+  "curriculum_history": [
+    [
+      1813648,
+      4
+    ]
+  ],
+  "train_seconds": 3187.8,
+  "git_commit": "4978876",
+  "saved_at": "2026-11-24 02:53:35"
+}

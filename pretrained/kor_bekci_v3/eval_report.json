@@ -1,0 +1,336 @@
+{
+  "level_2": {
+    "ppo": {
+      "episodes": 15,
+      "return": 11.957356490741352,
+      "kill_rate": 1.0,
+      "death_rate": 0.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": 131.23666666666406,
+      "hits_per_min": 0.18287572070813907,
+      "dodge_rate": 0.9856115107913669,
+      "early_dodge_rate": 0.9712230215827338,
+      "dashes_per_min": 10.820146808564894,
+      "r_per_min": 12.679383302430974,
+      "dir_changes_per_min": 0.8838993167560054,
+      "safe_action_share": 0.4714815379145716,
+      "hit_by_skill": {
+        "nova": 1,
+        "circle_on_player": 1,
+        "line": 1,
+        "cone": 1,
+        "rain": 2
+      }
+    },
+    "random": {
+      "episodes": 15,
+      "return": -53.42830773413296,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 6.300358683786601,
+      "dodge_rate": 0.5280373831775701,
+      "early_dodge_rate": 0.2803738317757009,
+      "dashes_per_min": 17.840619639237307,
+      "r_per_min": 18.02775900608245,
+      "dir_changes_per_min": 314.4565160887946,
+      "safe_action_share": 0.09165540891613842,
+      "hit_by_skill": {
+        "circle_on_player": 29,
+        "cone": 21,
+        "line": 11,
+        "rain": 30,
+        "nova": 10
+      }
+    },
+    "never_dodge": {
+      "episodes": 15,
+      "return": -33.37230184806308,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 11.70789395880551,
+      "dodge_rate": 0.0,
+      "early_dodge_rate": 0.0,
+      "dashes_per_min": 0.0,
+      "r_per_min": 2.720015768207341,
+      "dir_changes_per_min": 0.591307775697248,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "circle_on_player": 28,
+        "cone": 23,
+        "rain": 25,
+        "line": 12,
+        "nova": 11
+      }
+    },
+    "pacifist": {
+      "episodes": 15,
+      "return": -15.038849214858061,
+      "kill_rate": 0.0,
+      "death_rate": 0.0,
+      "timeout_rate": 1.0,
+      "time_to_kill": null,
+      "hits_per_min": 0.21666666666664833,
+      "dodge_rate": 0.9807407407407407,
+      "early_dodge_rate": 0.9377777777777778,
+      "dashes_per_min": 6.499999999999449,
+      "r_per_min": 0.04999999999999576,
+      "dir_changes_per_min": 21.549999999998175,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "cone": 2,
+        "rain": 4,
+        "circle_on_player": 4,
+        "line": 2,
+        "nova": 1
+      }
+    },
+    "expert": {
+      "episodes": 15,
+      "return": 11.958055557541956,
+      "kill_rate": 1.0,
+      "death_rate": 0.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": 133.50666666666456,
+      "hits_per_min": 0.14980525317088023,
+      "dodge_rate": 0.9888143176733781,
+      "early_dodge_rate": 0.9821029082774049,
+      "dashes_per_min": 8.299211025666764,
+      "r_per_min": 16.68830520323606,
+      "dir_changes_per_min": 4.464196544492231,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "cone": 1,
+        "rain": 1,
+        "nova": 2,
+        "circle_on_player": 1
+      }
+    }
+  },
+  "level_3": {
+    "ppo": {
+      "episodes": 15,
+      "return": 6.114882412231807,
+      "kill_rate": 1.0,
+      "death_rate": 0.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": 149.08666666666755,
+      "hits_per_min": 0.48294057147967345,
+      "dodge_rate": 0.959731543624161,
+      "early_dodge_rate": 0.8791946308724832,
+      "dashes_per_min": 9.712471493091211,
+      "r_per_min": 11.966194159996354,
+      "dir_changes_per_min": 4.346465143317062,
+      "safe_action_share": 0.48133410828452633,
+      "hit_by_skill": {
+        "nova": 4,
+        "circle_on_player": 4,
+        "rain": 6,
+        "cone": 3,
+        "line": 1
+      }
+    },
+    "random": {
+      "episodes": 15,
+      "return": -53.04965839040486,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 6.222041480276686,
+      "dodge_rate": 0.48743718592964824,
+      "early_dodge_rate": 0.3015075376884422,
+      "dashes_per_min": 17.62911752745061,
+      "r_per_min": 16.104107360716128,
+      "dir_changes_per_min": 318.54412362749855,
+      "safe_action_share": 0.0877121658705153,
+      "hit_by_skill": {
+        "rain": 31,
+        "line": 18,
+        "circle_on_player": 24,
+        "cone": 15,
+        "nova": 14
+      }
+    },
+    "never_dodge": {
+      "episodes": 15,
+      "return": -33.608920223572945,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 12.143198090692113,
+      "dodge_rate": 0.0,
+      "early_dodge_rate": 0.0,
+      "dashes_per_min": 0.0,
+      "r_per_min": 2.9785202863961784,
+      "dir_changes_per_min": 0.6873508353221951,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "circle_on_player": 26,
+        "rain": 42,
+        "line": 14,
+        "nova": 12,
+        "cone": 12
+      }
+    },
+    "pacifist": {
+      "episodes": 15,
+      "return": -18.971226147786286,
+      "kill_rate": 0.0,
+      "death_rate": 0.0,
+      "timeout_rate": 1.0,
+      "time_to_kill": null,
+      "hits_per_min": 0.26666666666664407,
+      "dodge_rate": 0.9743589743589743,
+      "early_dodge_rate": 0.8493589743589743,
+      "dashes_per_min": 7.0833333333327335,
+      "r_per_min": 0.23333333333331358,
+      "dir_changes_per_min": 26.03333333333113,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "circle_on_player": 4,
+        "nova": 2,
+        "cone": 8,
+        "rain": 2
+      }
+    },
+    "expert": {
+      "episodes": 15,
+      "return": 5.104569051410365,
+      "kill_rate": 1.0,
+      "death_rate": 0.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": 161.5200000000032,
+      "hits_per_min": 0.37147102526002235,
+      "dodge_rate": 0.9686847599164927,
+      "early_dodge_rate": 0.8768267223382046,
+      "dashes_per_min": 8.741951461119193,
+      "r_per_min": 18.226844972758432,
+      "dir_changes_per_min": 7.627538385339126,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "cone": 7,
+        "circle_on_player": 3,
+        "rain": 2,
+        "nova": 2,
+        "line": 1
+      }
+    }
+  },
+  "level_4": {
+    "ppo": {
+      "episodes": 15,
+      "return": 5.969698416184806,
+      "kill_rate": 1.0,
+      "death_rate": 0.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": 155.196666666668,
+      "hits_per_min": 0.20618999548959213,
+      "dodge_rate": 0.9863013698630136,
+      "early_dodge_rate": 0.8818493150684932,
+      "dashes_per_min": 12.422947228247926,
+      "r_per_min": 14.871453424686832,
+      "dir_changes_per_min": 6.649627354539346,
+      "safe_action_share": 0.46368283149349254,
+      "hit_by_skill": {
+        "cone": 2,
+        "rain": 1,
+        "nova": 3,
+        "circle_on_player": 1,
+        "line": 1
+      }
+    },
+    "random": {
+      "episodes": 15,
+      "return": -53.090452404046914,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 6.329727111254783,
+      "dodge_rate": 0.5462962962962963,
+      "early_dodge_rate": 0.30092592592592593,
+      "dashes_per_min": 17.568222186339806,
+      "r_per_min": 16.534797351849228,
+      "dir_changes_per_min": 325.72259002099867,
+      "safe_action_share": 0.09274800946847428,
+      "hit_by_skill": {
+        "circle_on_player": 27,
+        "rain": 18,
+        "nova": 17,
+        "line": 9,
+        "cone": 27
+      }
+    },
+    "never_dodge": {
+      "episodes": 15,
+      "return": -33.866739473446025,
+      "kill_rate": 0.0,
+      "death_rate": 1.0,
+      "timeout_rate": 0.0,
+      "time_to_kill": null,
+      "hits_per_min": 12.246147566078113,
+      "dodge_rate": 0.0,
+      "early_dodge_rate": 0.0,
+      "dashes_per_min": 0.0,
+      "r_per_min": 3.918767221144996,
+      "dir_changes_per_min": 0.36738442698234336,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "rain": 25,
+        "cone": 20,
+        "circle_on_player": 26,
+        "nova": 11,
+        "line": 18
+      }
+    },
+    "pacifist": {
+      "episodes": 15,
+      "return": -22.564773065040452,
+      "kill_rate": 0.0,
+      "death_rate": 0.0,
+      "timeout_rate": 1.0,
+      "time_to_kill": null,
+      "hits_per_min": 0.4166666666666314,
+      "dodge_rate": 0.9671052631578947,
+      "early_dodge_rate": 0.8302631578947368,
+      "dashes_per_min": 8.166666666665975,
+      "r_per_min": 0.24999999999997882,
+      "dir_changes_per_min": 28.233333333330943,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "nova": 3,
+        "cone": 7,
+        "line": 6,
+        "circle_on_player": 6,
+        "rain": 3
+      }
+    },
+    "expert": {
+      "episodes": 15,
+      "return": -3.2203842426145104,
+      "kill_rate": 0.7333333333333333,
+      "death_rate": 0.0,
+      "timeout_rate": 0.26666666666666666,
+      "time_to_kill": 187.35000000000835,
+      "hits_per_min": 0.4369631064104223,
+      "dodge_rate": 0.970108695652174,
+      "early_dodge_rate": 0.8858695652173914,
+      "dashes_per_min": 10.646010228908471,
+      "r_per_min": 19.50444411341067,
+      "dir_changes_per_min": 9.81180793485221,
+      "safe_action_share": 0.0,
+      "hit_by_skill": {
+        "rain": 7,
+        "line": 2,
+        "cone": 5,
+        "nova": 3,
+        "circle_on_player": 5
+      }
+    }
+  }
+}
