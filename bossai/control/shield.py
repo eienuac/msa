@@ -22,7 +22,7 @@ class ShieldConfig:
     enabled: bool = True
     lead: float = 0.5  # press this long before the expected impact (covers latency and timing noise)
     max_hold: float = 1.0  # the game drops the shield after ~1 s anyway
-    cooldown: float = 6.0  # do not try again sooner (the real cooldown is not known yet)
+    cooldown: float = 3.0  # do not try again sooner (the real cooldown is not known yet)
 
 
 class ShieldReflex:

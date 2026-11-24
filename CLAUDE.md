@@ -68,7 +68,7 @@ See README.md for the module map and commands.
   One hit never kills. The ring that follows the player cannot be walked out of; the
   only answer is the E shield (held, ~1 s max) pressed just as it lands. E is a
   rule-based reflex (`bossai/control/shield.py`), not a policy action. Assumptions
-  still open: shield cooldown (sim 6-10 s), whether it blocks every attack, the gap
+  still open: shield cooldown (sim 3-5 s; 6-10 s made every level unwinnable), whether it blocks every attack, the gap
   between the two poison hits (sim 1.0-1.5 s), the cocoon stun.
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),
   player/boss HP bars, Q icon digits. Arrow direction is not read yet.

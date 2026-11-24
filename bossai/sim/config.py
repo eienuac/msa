@@ -121,7 +121,7 @@ class SimConfig:
     # (user) E opens a shield while held, ~1 s at most; it is the only answer to the following ring.
     # Cooldown and whether it blocks every attack are assumptions.
     shield_max: Rng = (0.9, 1.1)
-    shield_cooldown: Rng = (6.0, 10.0)
+    shield_cooldown: Rng = (3.0, 5.0)  # the user calls E "the" answer to every ring, so shorter than the ring interval
     # boss
     kill_time: Rng = (70.0, 110.0)  # seconds of uninterrupted macro damage (video: whole fight ~130 s)
     boss_speed: Rng = (1.5, 3.0)
