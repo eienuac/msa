@@ -48,8 +48,8 @@ See README.md for the module map and commands.
   filled pale-green disc at the boss (11, ~9.5 s), green light beams/lines in the
   add phase (33), a poison wave (11, ~13 s), banners "YAVRULAR YAĞIYOR", "İPEK
   PORTALI KIRILDI", "DUVARLAR YENİDEN KIRILIYOR", a red-orange variant (44).
-  The character's own orange/white fire ring is NOT a warning (rim rule now rejects
-  V>235 / S<115). Camera zoom in these clips differs from the Kor Bekçi clips
+  The orange/white fire ring around the character is the user's own skill
+  (confirmed by the user), not a warning; the rim rule rejects it (V>235 / S<115). Camera zoom in these clips differs from the Kor Bekçi clips
   (character higher on screen) → the ground projection's foot point is off until
   recalibrated with a clip at the same camera setting.
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),

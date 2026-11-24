@@ -317,3 +317,11 @@ def test_pipeline_runs_on_720p_frames():
     assert out.state.player.dash_charges in (0, 1, 2, 3)
     small = cv2.resize(frame("v1_01.45.jpg"), (1280, 720))
     VisionPipeline(VisionConfig(read_boss_text=False)).process(small, 0.0)
+
+
+@pytest.mark.parametrize("name", ["fire_ring_r22_16.5.jpg", "fire_ring_r33_07.0.jpg"])
+def test_player_fire_ring_is_not_a_warning(name):
+    # the orange/white ring around the character is the user's own skill (confirmed by the user)
+    from bossai.perception.rim_detection import RimDetector
+
+    assert RimDetector().detect(frame(name)) == []
