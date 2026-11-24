@@ -66,6 +66,7 @@ class PerceptionModel:
             h = sh.hz.copy()
             h.center = h.center + sh.center_err + (r.normal(0, n.center_sigma * 0.3, 2) if n.center_sigma else 0)
             h.radius *= sh.radius_scale
+            h.inner_radius *= sh.radius_scale
             if h.phase == HazardPhase.TELEGRAPH and n.tti_sigma > 0:
                 h.time_to_impact = max(0.0, h.time_to_impact + r.normal(0, n.tti_sigma))
             if self._in_fov(h, truth.player.pos):

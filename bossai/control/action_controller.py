@@ -52,6 +52,7 @@ class ActionController:
         self.current_dir = 0
         self._scheduled: list[tuple[float, str, str]] = []  # (time, "up"/"tap", key)
         self._tapping: set[str] = set()
+        self.shield_held = False  # E, held separately from the movement keys
 
     # ------------------------------------------------------------------ public
     def apply(self, now: float, intent: AgentIntent, evidence: MacroEvidence) -> ControllerReport:
@@ -112,7 +113,18 @@ class ActionController:
                 self._tapping.discard(key)
                 self._tap(now, key)
 
+    def set_shield(self, on: bool) -> bool:
+        """Hold or release E. Returns True if a key event was sent."""
+        if not self.enabled or on == self.shield_held:
+            return False
+        (self.backend.key_down if on else self.backend.key_up)("e")
+        self.shield_held = on
+        return True
+
     def release_all(self) -> None:
+        if self.shield_held:
+            self.backend.key_up("e")
+            self.shield_held = False
         for k in sorted(self.held):
             self.backend.key_up(k)
         self.held.clear()

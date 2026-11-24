@@ -28,6 +28,7 @@ from ..capture.screen_capture import open_source
 from ..control.action_controller import ActionController, AgentIntent, ControllerConfig
 from ..control.input_backend import NullBackend
 from ..control.macro_state import MacroEvidence, MacroStateManager
+from ..control.shield import ShieldReflex
 from ..core.safety import EscapeParams, SafetyPlanner
 from ..perception.vision import VisionConfig, VisionPipeline
 from ..training.registry import load_model
@@ -43,7 +44,9 @@ def kill_switch_pressed() -> bool:
     return bool(ctypes.windll.user32.GetAsyncKeyState(0x7B) & 0x8000)  # F12
 
 
-def overlay(frame: np.ndarray, intent, macro, out, foot=(958.0, 668.0), pitch: float | None = None) -> np.ndarray:
+def overlay(
+    frame: np.ndarray, intent, macro, out, foot=(958.0, 668.0), pitch: float | None = None, shield_on: bool = False
+) -> np.ndarray:
     vis = frame.copy()
     lines = [
         f"agent: move={MOVE_NAMES[intent.move]} dash={int(intent.dash)} macro_want={['keep', 'ON', 'OFF'][intent.macro]}",
@@ -53,6 +56,7 @@ def overlay(frame: np.ndarray, intent, macro, out, foot=(958.0, 668.0), pitch: f
         f"ready={out.state.player.can_dash}",
         f"hazards={len(out.state.hazards)} " + " ".join(f"tti={h.time_to_impact:.1f}" for h in out.state.hazards[:4]),
         f"camera pitch={pitch:.1f}" if pitch is not None else "camera pitch=default",
+        f"shield(E)={'HOLD' if shield_on else '-'}",
     ]
     for i, s in enumerate(lines):
         cv2.putText(vis, s, (520, 180 + 36 * i), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 0, 0), 5)
@@ -93,6 +97,7 @@ def main(argv: list[str] | None = None) -> None:
         backend = NullBackend()
     controller = ActionController(backend, macro, ControllerConfig())
     ctx = AgentContext()
+    shield = ShieldReflex()  # E when a following ring is about to land (spider)
     is_file = args.source not in ("dxcam", "mss")
     src = open_source(args.source, step=2 if is_file else 1)  # recordings are 60 fps; 30 fps is plenty
     writer = None
@@ -127,9 +132,10 @@ def main(argv: list[str] | None = None) -> None:
                 action, _ = model.predict(obs, action_masks=masks, deterministic=True)
                 intent, _ = decode(np.asarray(action), s, planner, ctx.move_dir)
                 rep = controller.apply(t, intent, ev)
+                controller.set_shield(shield.update(t, s))
                 ctx.update(t, controller.current_dir, rep.r_pressed, DECISION_DT)
             if args.out or args.show:
-                vis = overlay(frame, intent, macro, out, vision.camera.foot_px, vision.pitch.estimate())
+                vis = overlay(frame, intent, macro, out, vision.camera.foot_px, vision.pitch.estimate(), controller.shield_held)
                 if args.out:
                     small = cv2.resize(vis, None, fx=0.5, fy=0.5)
                     if writer is None:

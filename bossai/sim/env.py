@@ -18,6 +18,7 @@ from ..agent.observation_encoder import AgentContext, ObservationEncoder
 from ..control.action_controller import ActionController, AgentIntent, ControllerConfig
 from ..control.input_backend import RecordingBackend
 from ..control.macro_state import MacroEvidence, MacroStateManager
+from ..control.shield import ShieldReflex
 from ..core.game_state import GameState, HazardPhase
 from ..core.safety import EscapeParams, SafetyPlanner
 from ..rewards.reward_system import RewardSystem, RewardWeights, StepEvents
@@ -41,6 +42,7 @@ class EpisodeStats:
     direction_changes: int = 0
     reversals: int = 0
     safe_moves: int = 0
+    shield_blocks: int = 0
     outcome: str = "running"
 
 
@@ -101,6 +103,7 @@ class BossFightEnv(gym.Env):
         self.macro.reset(0.0)
         self.controller = ActionController(self.backend, self.macro, ControllerConfig(tap_hold=0.0, dash_dir_lead=0.0))
         self.ctx = AgentContext()
+        self.shield = ShieldReflex()
         self.stats = EpisodeStats()
         self._prev_boss_hp_obs = 1.0
         self._obs: Observation = self.perception.observe(self.world)
@@ -131,8 +134,9 @@ class BossFightEnv(gym.Env):
         evidence = self._evidence()
         self.backend.clear_events()
         report = self.controller.apply(w.t, intent, evidence)
+        self.controller.set_shield(self.shield.update(w.t, obs_state))
         taps = [k for kind, k in self.backend.events if kind == "down" and k in ("r", "q")]
-        held = {k for k in self.backend.pressed if k in "wasd"}
+        held = {k for k in self.backend.pressed if k in "wasde"}
 
         prev_truth = self._truth
         in_danger_true = any(
@@ -177,6 +181,7 @@ class BossFightEnv(gym.Env):
         st.hits += wev.hits
         st.threats += wev.threats
         st.dodges += wev.dodges
+        st.shield_blocks += wev.shield_blocks
         st.late_dodges += wev.late_dodges
         st.dashes += wev.dashes
         st.r_presses += wev.r_taps

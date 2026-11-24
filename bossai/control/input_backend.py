@@ -14,7 +14,7 @@ import sys
 import time
 from typing import Protocol
 
-VALID_KEYS = ("w", "a", "s", "d", "q", "r")
+VALID_KEYS = ("w", "a", "s", "d", "q", "r", "e")
 
 
 class InputBackend(Protocol):
@@ -59,7 +59,7 @@ class NullBackend:
 
 
 # DirectInput scan codes (set 1)
-SCAN_CODES = {"w": 0x11, "a": 0x1E, "s": 0x1F, "d": 0x20, "q": 0x10, "r": 0x13}
+SCAN_CODES = {"w": 0x11, "a": 0x1E, "s": 0x1F, "d": 0x20, "q": 0x10, "r": 0x13, "e": 0x12}
 
 
 class WindowsSendInputBackend:  # pragma: no cover - Windows only

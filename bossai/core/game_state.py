@@ -61,6 +61,7 @@ class Hazard:
     skill: str = ""
     vertices: np.ndarray | None = None  # POLYGON only, (M,2) ground coordinates
     following: bool = False  # still tracking the player (cannot be left yet)
+    inner_radius: float = 0.0  # CIRCLE only: > 0 makes it a ring that spares the inside (poison wave, outer hit)
 
     def __post_init__(self) -> None:
         self.center = np.asarray(self.center, dtype=np.float64).reshape(2)
@@ -75,7 +76,11 @@ class Hazard:
             return _polygon_signed_distance(pts, self.vertices) <= margin
         d = pts - self.center
         if self.shape is HazardShape.CIRCLE:
-            return (d[:, 0] ** 2 + d[:, 1] ** 2) <= (self.radius + margin) ** 2
+            d2 = d[:, 0] ** 2 + d[:, 1] ** 2
+            inside = d2 <= (self.radius + margin) ** 2
+            if self.inner_radius > 0:
+                inside &= d2 >= max(self.inner_radius - margin, 0.0) ** 2
+            return inside
         ux, uy = math.cos(self.direction), math.sin(self.direction)
         along = d[:, 0] * ux + d[:, 1] * uy
         across = -d[:, 0] * uy + d[:, 1] * ux
@@ -100,6 +105,9 @@ class Hazard:
         """Approximate signed distance (negative inside) for points (N,2)."""
         pts = np.asarray(pts, dtype=np.float64).reshape(-1, 2)
         d = pts - self.center
+        if self.shape is HazardShape.CIRCLE and self.inner_radius > 0:
+            r = np.hypot(d[:, 0], d[:, 1])
+            return np.maximum(r - self.radius, self.inner_radius - r)
         if self.shape is HazardShape.CIRCLE or (
             self.shape is HazardShape.SECTOR and self.half_angle >= math.pi - 1e-6
         ):
@@ -141,6 +149,7 @@ class Hazard:
             skill=self.skill,
             vertices=None if self.vertices is None else self.vertices.copy(),
             following=self.following,
+            inner_radius=self.inner_radius,
         )
 
 

@@ -49,6 +49,7 @@ class WorldEvents:
     hits: int = 0
     dodges: int = 0  # threatened, not hit, left with at least safe_exit_slack to spare
     late_dodges: int = 0  # threatened, not hit, but left at the last moment
+    shield_blocks: int = 0  # hits stopped by the E shield
     threats: int = 0
     dashes: int = 0
     wasted_dash_taps: int = 0
@@ -103,6 +104,11 @@ class BossWorld:
         self.macro_on = bool(r.random() < 0.3)  # unknown start state for the agent
         self.boss_targeted = True
         self.stunned_until = -1.0  # web cocoon: no movement, no dash
+        self.shield_max = sample(r, c.shield_max)
+        self.shield_cooldown = sample(r, c.shield_cooldown)
+        self.shield_since = -1.0  # E shield up since (-1 = down)
+        self.shield_ready_at = 0.0
+        self._e_held = False
         self._target_lost = False  # an add took the target (after a summon burst)
         self._summon_at = float("inf")
         self._summon_spec = None
@@ -124,6 +130,7 @@ class BossWorld:
     def step(self, held: set[str], taps: list[str], duration: float) -> WorldEvents:
         ev = WorldEvents()
         self.move_dir = direction_from_keys(held)
+        self._e_held = "e" in held
         for k in taps:
             if k == "r":
                 ev.r_taps += 1
@@ -155,9 +162,21 @@ class BossWorld:
             if self.dash_recharge <= 0:
                 self.dash_recharge = self.dash_regen
 
+    @property
+    def shield_up(self) -> bool:
+        return self.shield_since >= 0
+
+    def _update_shield(self) -> None:
+        if self.shield_up and (not self._e_held or self.t - self.shield_since >= self.shield_max):
+            self.shield_since = -1.0
+            self.shield_ready_at = self.t + self.shield_cooldown
+        elif not self.shield_up and self._e_held and self.t >= self.shield_ready_at:
+            self.shield_since = self.t
+
     def _substep(self, dt: float, ev: WorldEvents) -> None:
         c = self.cfg
         self.t += dt
+        self._update_shield()
         # --- dash charges
         if self.dash_lockout > 0:
             self.dash_lockout = max(0.0, self.dash_lockout - dt)
@@ -265,7 +284,11 @@ class BossWorld:
                     hit = h.contains(self.player_pos[None], margin=c.hitbox)[0] and not immune
                     if sh.threatened:
                         ev.threats += 1
-                    if hit:
+                    if hit and self.shield_up:
+                        hit = False
+                        ev.shield_blocks += 1
+                        ev.dodges += 1
+                    elif hit:
                         dmg = min(h.damage, self.player_hp)
                         self.player_hp -= dmg
                         ev.player_damage += dmg
@@ -340,9 +363,16 @@ class BossWorld:
             self.casting_until = self.t + tele
         elif name == "follow_ring":
             add(HazardShape.CIRCLE, self.player_pos.copy(), sample(r, spec.radius))
-        elif name in ("boss_disc", "poison_wave"):
+        elif name == "boss_disc":
             add(HazardShape.CIRCLE, self.boss_pos.copy(), sample(r, spec.radius))
             self.casting_until = self.t + tele
+        elif name == "poison_wave":
+            # outside the ring first (stay in), then the inside (get out)
+            ring = sample(r, spec.radius)
+            gap = sample(r, spec.second_hit)
+            add(HazardShape.CIRCLE, self.boss_pos.copy(), 2.0 * self.arena_r + ring, inner_radius=ring)
+            add(HazardShape.CIRCLE, self.boss_pos.copy(), ring, delay=gap)
+            self.casting_until = self.t + tele + gap
         elif name == "beams":
             n = int(round(sample(r, spec.count)))
             for _ in range(n):

@@ -39,6 +39,7 @@ class SkillSpec:
     target_steal_prob: float = 0.0  # chance the summoned adds take over the player's target
     follow: Rng = (0.0, 0.0)  # seconds the zone follows the player before it locks in place
     stun: Rng = (0.0, 0.0)  # seconds the player cannot move or dash after being hit
+    second_hit: Rng = (0.0, 0.0)  # poison wave: the outside is hit first, the inside this much later
 
 
 SKILLS_ALL: dict[str, SkillSpec] = {
@@ -58,13 +59,19 @@ SKILLS_ALL: dict[str, SkillSpec] = {
     # Ring that follows the player ~2 s, then the player is wrapped in a web cocoon
     # (recordings). Assumed: it locks shortly before impact and a hit stuns.
     "follow_ring": SkillSpec(
-        "follow_ring", 0.6, radius=(2.5, 3.5), telegraph=(2.2, 2.6), follow=(1.3, 1.7),  # leaves 0.5-1.3 s to step out
+        # (user) cannot be walked out of: it follows until impact; the only answer is the E shield
+        # held at the moment it lands
+        "follow_ring", 0.6, radius=(2.5, 3.5), telegraph=(2.2, 2.6), follow=(10.0, 10.0),
         damage=(0.08, 0.15), stun=(1.0, 1.5),
     ),
     # filled pale-green disc at the boss (recording 11, ~9.5 s)
     "boss_disc": SkillSpec("boss_disc", 0.6, radius=(4.0, 5.5), telegraph=(1.0, 1.4), damage=(0.12, 0.2)),
-    # huge ring around the boss, then a poison wave over it (~1.0-1.2 s, clips b2_3 / 11)
-    "poison_wave": SkillSpec("poison_wave", 0.4, radius=(9.0, 13.0), telegraph=(1.0, 1.2), damage=(0.15, 0.25)),
+    # (user) ring around the boss: the poison first hits everything OUTSIDE it (stay inside),
+    # then the inside (leave, one dash is enough). One hit never kills.
+    # Ring 1.0-1.2 s (clips b2_3 / 11); radius and the gap to the second hit are assumptions.
+    "poison_wave": SkillSpec(
+        "poison_wave", 0.4, radius=(6.5, 8.5), telegraph=(1.0, 1.2), second_hit=(1.0, 1.5), damage=(0.1, 0.18)
+    ),
     # long green beams across the arena (recording 33)
     "beams": SkillSpec(
         "beams", 0.5, radius=(25.0, 35.0), width=(1.5, 2.5), count=(2, 4), telegraph=(1.0, 1.4), damage=(0.1, 0.18)
@@ -111,6 +118,10 @@ class SimConfig:
     dash_charge_regen: Rng = (3.0, 3.8)  # (video) 3.25-3.5 s per charge
     dash_empty_lockout: Rng = (7.5, 8.5)  # (video) ~8 s after the third dash
     dash_iframes: bool = False  # (user) dashing does not protect from damage
+    # (user) E opens a shield while held, ~1 s at most; it is the only answer to the following ring.
+    # Cooldown and whether it blocks every attack are assumptions.
+    shield_max: Rng = (0.9, 1.1)
+    shield_cooldown: Rng = (6.0, 10.0)
     # boss
     kill_time: Rng = (70.0, 110.0)  # seconds of uninterrupted macro damage (video: whole fight ~130 s)
     boss_speed: Rng = (1.5, 3.0)

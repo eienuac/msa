@@ -43,6 +43,8 @@ class VisionConfig:
     ocr_in_background: bool = False  # True for live use: OCR never blocks the frame loop
     telegraph_style: str = "filled"  # "filled" (HazardDetector) or "rim" (RimDetector)
     rim: RimStyle = field(default_factory=RimStyle)
+    follow_rings: bool = False  # mark small circles centred on the player as following (shield, not dodge)
+    follow_ring_max_radius: float = 5.0
     auto_camera: bool = True  # follow camera lag (overhead bar) and camera tilt (shape of ground circles)
     anchor: AnchorConfig = field(default_factory=AnchorConfig)
     pitch: PitchConfig = field(default_factory=PitchConfig)
@@ -57,6 +59,7 @@ class VisionConfig:
             boss_keywords=p.ocr_keywords or ("kor be",),
             telegraph_style=p.telegraph_style,
             rim=p.rim_style,
+            follow_rings=p.follow_rings,
             **kw,
         )
 
@@ -230,6 +233,14 @@ class VisionPipeline:
         alive = {tr.id for tr in self.tracker.tracks}
         self._split_cache = {k: v for k, v in self._split_cache.items() if k in alive}
         hazards = [hz for tr in tracks for hz in self.track_to_hazards(tr, t, proj)]
+        if self.cfg.follow_rings:
+            for hz in hazards:
+                if (
+                    hz.shape is HazardShape.CIRCLE
+                    and hz.radius <= self.cfg.follow_ring_max_radius
+                    and float(np.linalg.norm(hz.center)) < max(1.0, 0.35 * hz.radius)
+                ):
+                    hz.following = True
         if self.cfg.auto_camera:
             for tr in tracks:
                 px = self._circle_px(tr.det, w, h)

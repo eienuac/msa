@@ -208,24 +208,90 @@ def test_spider_curriculum_uses_its_own_skills():
         env.step(np.array([0, 0, 0]))
 
 
-def test_follow_ring_tracks_player_then_locks_and_stuns():
+def test_follow_ring_cannot_be_walked_out_of_and_stuns():
+    # (user) the ring follows until it lands; walking away does not help
     w = _spider_world("follow_ring")
     w.step(set(), [], 0.1)
     sh = next(s for s in w.hazards if s.hz.skill == "follow_ring")
-    w.step({"d"}, [], 0.5)  # walking: the ring follows
-    assert np.linalg.norm(sh.hz.center - w.player_pos) < 0.6
-    lock_t = sh.follow_until
-    w.step(set(), [], max(0.0, lock_t - w.t) + 0.1)  # past the lock: it stays where it was
-    locked = sh.hz.center.copy()
-    w.step(set(), [], 0.3)
-    np.testing.assert_allclose(sh.hz.center, locked)
     hp = w.player_hp
-    w.step(set(), [], 3.0)  # stand in it until impact
-    assert w.player_hp < hp and w.stunned_until > 0
+    for _ in range(30):
+        w.step({"d"}, [], 0.1)
+        if sh.resolved:
+            break
+        assert np.linalg.norm(sh.hz.center - w.player_pos) < 0.6
+    assert sh.resolved and w.player_hp < hp and w.stunned_until > w.t - 0.2
     w.stunned_until = w.t + 1.0
     before = w.player_pos.copy()
     w.step({"w"}, ["q"], 0.5)  # stunned: no walking, no dash
     np.testing.assert_allclose(w.player_pos, before, atol=1e-6)
+
+
+def test_shield_blocks_the_follow_ring_only_when_held_at_impact():
+    w = _spider_world("follow_ring")
+    w.step(set(), [], 0.1)
+    sh = next(s for s in w.hazards if s.hz.skill == "follow_ring")
+    w.step(set(), [], sh.impact_t - w.t - 0.4)
+    hp = w.player_hp
+    ev = w.step({"e"}, [], 0.6)  # E held across the impact
+    assert ev.shield_blocks == 1 and w.player_hp == hp and w.stunned_until < 0
+    # too early: the shield is down (max ~1 s) when the next ring lands, and it is on cooldown
+    w.hazards.clear()
+    w.next_skill_t = w.t
+    w.step(set(), [], 0.1)
+    sh = next(s for s in w.hazards if s.hz.skill == "follow_ring")
+    w.step({"e"}, [], sh.impact_t - w.t + 0.1)
+    assert w.player_hp < hp
+
+
+def test_shield_cooldown_and_max_hold():
+    w = _spider_world("beams")
+    w.step({"e"}, [], 0.1)
+    assert w.shield_up
+    w.step({"e"}, [], 1.5)
+    assert not w.shield_up  # dropped after ~1 s even while held
+    w.step(set(), [], 0.1)
+    w.step({"e"}, [], 0.1)
+    assert not w.shield_up  # cooldown
+
+
+def test_poison_wave_hits_outside_first_then_inside():
+    # (user) stay inside the ring for the first hit, then get out
+    w = _spider_world("poison_wave")
+    w.player_pos = w.boss_pos + np.array([2.5, 0.0])
+    w.step(set(), [], 0.05)
+    outer, inner = sorted((s for s in w.hazards if s.hz.skill == "poison_wave"), key=lambda s: s.impact_t)
+    assert outer.hz.inner_radius > 0 and inner.hz.inner_radius == 0
+    assert inner.impact_t - outer.impact_t >= 0.9
+    hp = w.player_hp
+    w.step(set(), [], outer.impact_t - w.t + 0.1)  # waited inside: the outer hit misses
+    assert w.player_hp == hp
+    away = (w.player_pos - w.boss_pos) / np.linalg.norm(w.player_pos - w.boss_pos)
+    key = "d" if away[0] > 0 else "a"
+    w.step({key}, ["q"], inner.impact_t - w.t + 0.1)  # dash out before the inside is hit
+    assert w.player_hp == hp
+    # standing still through both hits: only the inside one lands
+    w2 = _spider_world("poison_wave", seed=1)
+    w2.player_pos = w2.boss_pos + np.array([2.5, 0.0])
+    w2.step(set(), [], 0.05)
+    end = max(s.impact_t for s in w2.hazards) + 0.1
+    ev = w2.step(set(), [], end - w2.t)
+    assert ev.hits == 1 and 1.0 - w2.player_hp <= 0.18 + 1e-9  # one hit never kills (user)
+
+
+def test_shield_reflex_in_the_env():
+    from bossai.sim.config import load_yaml
+
+    cfg = load_yaml(Path(__file__).parents[1] / "configs" / "orumcek_ana_sim.yaml")
+    cfg = replace(level_config(1, cfg), skills=("follow_ring",))
+    env = BossFightEnv(cfg=cfg)
+    env.reset(seed=0)
+    blocks = hits = 0
+    for _ in range(600):
+        _, _, term, trunc, info = env.step(np.array([0, 0, 0]))
+        hits += info["hit_skills"].count("follow_ring")
+        if term or trunc:
+            break
+    assert env.stats.shield_blocks >= 3 and env.stats.shield_blocks > 2 * hits
 
 
 def test_beams_cross_near_the_player():
@@ -252,3 +318,37 @@ def test_replay_episodes_use_lower_levels():
     env = BossFightEnv(level=3, replay_prob=0.0)
     env.reset(seed=0)
     assert env.ep_cfg.level == 3
+
+
+def test_planner_waits_inside_the_poison_ring_then_leaves():
+    from bossai.core.game_state import BossState, GameState, Hazard, HazardShape, PlayerState
+    from bossai.core.safety import EscapeParams, SafetyPlanner
+
+    boss = np.array([0.0, 0.0])
+
+    def state(outer_tti: float | None, inner_tti: float, player=(2.5, 0.0)):
+        hz = [Hazard(1, HazardShape.CIRCLE, boss, 7.5, inner_tti)]
+        if outer_tti is not None:
+            hz.append(Hazard(0, HazardShape.CIRCLE, boss, 60.0, outer_tti, inner_radius=7.5))
+        return GameState(
+            t=0.0,
+            player=PlayerState(pos=np.array(player), hp=1.0, max_hp=1.0),
+            boss=BossState(pos=boss, hp=1.0, max_hp=1.0),
+            hazards=hz,
+        )
+
+    from bossai.core.game_state import DIRECTION_VECTORS
+    from bossai.core.safety import ray_features
+
+    planner = SafetyPlanner(EscapeParams(), min_slack=0.5)
+    first = planner.plan(state(0.9, 2.1))
+    # stay inside for the outer hit (at most a step towards the edge, never a dash out)
+    assert not first.dash
+    if first.direction:
+        rf = ray_features(state(0.9, 2.1), planner.p, DIRECTION_VECTORS[first.direction : first.direction + 1])
+        assert 2.5 + rf.exit_dist[0] < 7.5 - planner.p.hitbox - planner.p.margin
+    assert planner.plan(state(0.9, 2.6)).wait  # plenty of time for the second hit: just wait
+    after = planner.plan(state(None, 1.1))
+    assert after.direction != 0  # then leave before the inside is hit
+    outside = planner.plan(state(1.0, 2.2, player=(9.0, 0.0)))
+    assert outside.direction != 0  # caught outside the ring: step in before the outer hit

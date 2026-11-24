@@ -86,6 +86,8 @@ class ExpertPolicy(BasePolicy):
             dash = plan.dash
             mac = 0  # do not toggle R to dodge: walking usually leaves it on (user, recordings)
             return np.array([move, int(dash and s.player.can_dash), mac])
+        if plan.wait:
+            return np.array([0, 0, 0])
         move = _approach(s)
         if move and self._blocked(s, move):
             move = 0  # wait outside instead of walking into a warning zone

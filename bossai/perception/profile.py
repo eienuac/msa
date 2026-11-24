@@ -24,6 +24,7 @@ class BossProfile:
     default_telegraph: float = 1.25
     min_confirm_age: float = 0.0
     sim_config: str | None = None
+    follow_rings: bool = False  # rings centred on the player follow it until they land (E shield)
 
 
 def list_profiles() -> list[str]:
@@ -54,4 +55,5 @@ def load_profile(boss: str | Path) -> BossProfile:
         default_telegraph=float(data.get("default_telegraph", 1.25)),
         min_confirm_age=float(data.get("min_confirm_age", 0.0)),
         sim_config=data.get("sim_config"),
+        follow_rings=bool(data.get("follow_rings", False)),
     )
