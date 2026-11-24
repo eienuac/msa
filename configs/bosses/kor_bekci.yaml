@@ -1,0 +1,12 @@
+# Kor Bekçi (rock golem). Measured on four 1920x1080 recordings of the user.
+name: Kor Bekçi
+ocr_keywords: ["kor be"]          # fragment of the target name as OCR reads it
+telegraph_style: filled           # red zones whose inner fill grows to the rim
+telegraph_color:
+  hue_window: [-5, 6]             # telegraph hue -1..4; fire/lava 7-19, bark 12-16
+  max_sat: 200
+  min_contrast: 35
+  weak_contrast: 20
+default_telegraph: 1.25           # seconds (1.1-1.5 measured)
+min_confirm_age: 0.0
+sim_config: configs/kor_bekci_sim.yaml

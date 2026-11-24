@@ -9,7 +9,7 @@ detector), exact dash charges (needs digit templates), wind-up cue detection.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import cv2
 import numpy as np
@@ -19,6 +19,8 @@ from .boss_reader import BossInfoReader
 from .calibration import CameraModel, GroundProjector, fit_circle, fit_circles_ransac
 from .dash_reader import DashIconReader, DashStateFilter
 from .hazard_detection import DetectorConfig, HazardDetector
+from .profile import load_profile
+from .rim_detection import RimDetector, RimStyle
 from .tracking import HazardTracker, TrackerConfig
 from .ui_reader import HudReader, HudReading, UILayout
 
@@ -37,6 +39,21 @@ class VisionConfig:
     split_tol: float = 0.4
     split_min_coverage: float = 0.8
     ocr_in_background: bool = False  # True for live use: OCR never blocks the frame loop
+    telegraph_style: str = "filled"  # "filled" (HazardDetector) or "rim" (RimDetector)
+    rim: RimStyle = field(default_factory=RimStyle)
+
+    @classmethod
+    def for_boss(cls, boss: str, **kw) -> "VisionConfig":
+        """Vision settings from configs/bosses/<boss>.yaml."""
+        p = load_profile(boss)
+        return cls(
+            detector=replace(DetectorConfig(), color=p.telegraph_color),
+            tracker=replace(TrackerConfig(), default_telegraph=p.default_telegraph, min_confirm_age=p.min_confirm_age),
+            boss_keywords=p.ocr_keywords or ("kor be",),
+            telegraph_style=p.telegraph_style,
+            rim=p.rim_style,
+            **kw,
+        )
 
 
 @dataclass
@@ -52,7 +69,10 @@ class VisionPipeline:
     def __init__(self, cfg: VisionConfig | None = None):
         self.cfg = cfg or VisionConfig()
         self.hud = HudReader(self.cfg.layout)
-        self.detector = HazardDetector(self.cfg.detector, self.cfg.layout)
+        if self.cfg.telegraph_style == "rim":
+            self.detector = RimDetector(self.cfg.rim, self.cfg.layout)
+        else:
+            self.detector = HazardDetector(self.cfg.detector, self.cfg.layout)
         self.tracker = HazardTracker(self.cfg.tracker)
         self.dash_reader = DashIconReader()
         self.dash_filter = DashStateFilter()

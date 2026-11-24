@@ -79,6 +79,7 @@ def main(argv=None) -> None:
     ap.add_argument("--video", default=None)
     ap.add_argument("--seconds", type=float, default=20.0)
     ap.add_argument("--out", default="check_out")
+    ap.add_argument("--boss", default="kor_bekci", help="profile in configs/bosses/")
     args = ap.parse_args(argv)
 
     print("== packages")
@@ -98,7 +99,7 @@ def main(argv=None) -> None:
     print("== vision (what the agent would see)")
     out_dir = Path(args.out)
     out_dir.mkdir(exist_ok=True)
-    pipe = VisionPipeline(VisionConfig(ocr_in_background=True))
+    pipe = VisionPipeline(VisionConfig.for_boss(args.boss, ocr_in_background=True))
     if pipe.boss_reader is None or not pipe.boss_reader.available:
         print("  -- OCR not available: boss distance will be missing (pip install rapidocr_onnxruntime)")
     times = []

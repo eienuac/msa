@@ -31,6 +31,16 @@ See README.md for the module map and commands.
   the player back. No damage. Adds can take the target.
 - The user wants early dodges, not last-second ones (reward penalises exits
   with < 0.5 s left and time spent inside warnings).
+- Bosses have profiles in `configs/bosses/<id>.yaml` (telegraph style, colours,
+  OCR name fragment, warning duration). Pass `--boss <id>` to the tools.
+- Örümcek Ana (spider, orange sand, 3 short 1280x720 clips that look like screen
+  captures of a video player): warnings are pale green-yellow translucent discs,
+  only the rim stands out → `telegraph_style: rim`. Seen: a ring that follows the
+  player for ~2 s, then the player is wrapped in a web cocoon and small spiders
+  appear; a huge ring around the boss, ~1.0-1.2 s later a yellow-green poison wave
+  over the whole area. Mechanics NOT confirmed by the user yet (dodgeable? damage?
+  safe spot?) → no simulator profile or training for it yet. HUD reading on these
+  clips is unreliable (different UI scale + player bar).
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),
   player/boss HP bars, Q icon digits. Arrow direction is not read yet.
 

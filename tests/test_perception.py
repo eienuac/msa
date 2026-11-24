@@ -260,3 +260,60 @@ class TestCircleSplitting:
         circles = [h for h in out.state.hazards if h.shape is HazardShape.CIRCLE]
         assert len(circles) >= 3  # several rain circles, not one merged blob
         assert all(h.radius < 5.0 for h in circles)
+
+
+class TestSpiderRim:
+    """Örümcek Ana: pale ring telegraphs on orange sand (1280x720 recordings)."""
+
+    def test_profiles_load(self):
+        from bossai.perception.profile import list_profiles, load_profile
+        from bossai.perception.rim_detection import RimDetector
+        from bossai.perception.vision import VisionConfig, VisionPipeline
+
+        assert {"kor_bekci", "orumcek_ana"} <= set(list_profiles())
+        assert load_profile("kor_bekci").telegraph_style == "filled"
+        p = VisionPipeline(VisionConfig.for_boss("orumcek_ana", read_boss_text=False))
+        assert isinstance(p.detector, RimDetector)
+        assert p.cfg.boss_keywords == ("orumcek a",)
+
+    def test_ring_around_player_found(self):
+        from bossai.perception.calibration import GroundProjector, fit_circle
+        from bossai.perception.rim_detection import RimDetector
+
+        img = frame("spider2_13.00.jpg")
+        hs = RimDetector().detect(img)
+        assert hs, "the green ring under the player was not found"
+        proj = GroundProjector()
+        from bossai.perception.calibration import CameraModel
+
+        proj = GroundProjector(CameraModel().scaled(img.shape[1], img.shape[0]))
+        best = []
+        for h in hs:
+            c, r = fit_circle(proj.to_ground(h.contour))
+            best.append((np.linalg.norm(c), r))
+        dist, r = min(best)
+        assert dist < 1.5 and 2.5 < r < 4.5
+
+    @pytest.mark.parametrize("name", ["spider2_05.00.jpg", "spider1_08.00.jpg"])
+    def test_no_ring_without_warning(self, name):
+        from bossai.perception.rim_detection import RimDetector
+
+        assert RimDetector().detect(frame(name)) == []
+
+    def test_red_zone_rule_misses_the_green_ring(self):
+        # documents why the spider needs its own profile: the Kor Bekçi rule does not see its warnings
+        from bossai.perception.hazard_detection import HazardDetector
+
+        assert HazardDetector().detect(frame("spider2_13.00.jpg")) == []
+
+
+def test_pipeline_runs_on_720p_frames():
+    from bossai.perception.vision import VisionConfig, VisionPipeline
+
+    pipe = VisionPipeline(VisionConfig.for_boss("orumcek_ana", read_boss_text=False))
+    img = frame("spider2_13.00.jpg")
+    assert img.shape[:2] == (720, 1280)
+    out = pipe.process(img, 0.0)
+    assert out.state.player.dash_charges in (0, 1, 2, 3)
+    small = cv2.resize(frame("v1_01.45.jpg"), (1280, 720))
+    VisionPipeline(VisionConfig(read_boss_text=False)).process(small, 0.0)

@@ -45,7 +45,7 @@ class DashIconReader:
                 self.templates[name] = img.astype(np.float32)
 
     def _crop(self, frame: np.ndarray) -> np.ndarray:
-        if (self.sx, self.sy) != (1.0, 1.0):
+        if frame.shape[1] != 1920 or frame.shape[0] != 1080:  # HUD positions are in 1080p pixels
             frame = cv2.resize(frame, (1920, 1080), interpolation=cv2.INTER_LINEAR)
         x0, y0 = ICON_ORIGIN
         return frame[y0 : y0 + 55, x0 : x0 + 50]

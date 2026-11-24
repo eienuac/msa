@@ -52,6 +52,7 @@ class TrackerConfig:
     flash_jump: float = 18.0  # median colour strength jump that signals impact
     active_time: float = 0.3
     fill_delta: float = 7.0
+    min_confirm_age: float = 0.0  # seconds a track must exist before it is reported
 
 
 def _iou(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> float:
@@ -104,7 +105,11 @@ class HazardTracker:
                 tr.background = True
             alive.append(tr)
         self.tracks = alive
-        return [tr for tr in self.tracks if tr.frames >= c.confirm_frames and not tr.background and tr.missed == 0]
+        return [
+            tr
+            for tr in self.tracks
+            if tr.frames >= c.confirm_frames and tr.age >= c.min_confirm_age and not tr.background and tr.missed == 0
+        ]
 
     def _advance(self, tr: Track, t: float, d: ScreenHazard) -> None:
         c = self.cfg

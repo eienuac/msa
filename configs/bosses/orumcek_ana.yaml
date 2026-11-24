@@ -1,0 +1,13 @@
+# Örümcek Ana (giant spider) on orange sand. Three short 1280x720 recordings.
+# Warnings are pale green-yellow translucent discs; only the rim stands out,
+# and the floor is reddish, so the red "filled" rule cannot be used.
+name: Örümcek Ana
+ocr_keywords: ["orumcek a"]
+telegraph_style: rim
+rim_style:
+  min_green_shift: 14             # rim is greener than the sand around it
+  min_value: 160                  # rim pixels V 173-221
+  min_visible_coverage: 0.6
+default_telegraph: 1.1            # big ring around the boss: ~1.0-1.2 s before the poison wave
+min_confirm_age: 0.2              # rims must persist; single-frame circles are noise
+sim_config: null                  # mechanics not confirmed yet (see CLAUDE.md)

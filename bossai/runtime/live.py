@@ -76,11 +76,12 @@ def main(argv: list[str] | None = None) -> None:
     ap.add_argument("--out", default=None, help="write the overlay video here")
     ap.add_argument("--show", action="store_true")
     ap.add_argument("--max-seconds", type=float, default=1e9)
+    ap.add_argument("--boss", default="kor_bekci", help="profile in configs/bosses/")
     args = ap.parse_args(argv)
 
     model = load_model(args.model)
     encoder = ObservationEncoder()
-    vision = VisionPipeline(VisionConfig(ocr_in_background=True))
+    vision = VisionPipeline(VisionConfig.for_boss(args.boss, ocr_in_background=True))
     planner = SafetyPlanner(EscapeParams())
     macro = MacroStateManager()
     if args.control:

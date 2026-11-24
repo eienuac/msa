@@ -144,6 +144,19 @@ Ajan son saniyeyi beklememeli. Ödülde bunun için üç terim var:
 | Boss mesafesi, hedef adı | RapidOCR + son 3 okumanın ortancası | tek karede 30/33 doğru |
 | Tehlike alanları | Renk tonu + dışbükey bölge + takip + dolum hızı | 4 uyarıda patlama ±0,3 sn |
 
+## Boss profilleri
+
+Her boss'un görüntü ayarları `configs/bosses/<id>.yaml` dosyasında: uyarı tarzı, renk eşikleri, OCR'da hedef adının parçası ve tipik uyarı süresi. Araçlara `--boss <id>` verilir.
+
+| Profil | Uyarı tarzı | Durum |
+|---|---|---|
+| `kor_bekci` | `filled`: kırmızı alan, içten dolan dolgu | ölçüldü, simülasyon ve model hazır |
+| `orumcek_ana` | `rim`: soluk yeşil-sarı yarı saydam disk, sadece kenar halkası belirgin; zemin turuncu kum | tespit var; mekanikler doğrulanmadı, simülasyon ve eğitim yok |
+
+```bash
+python tools/analyze_video.py kayit.mp4 --boss orumcek_ana --out analysis
+```
+
 ## Bilinen eksikler (sıradaki adımlar)
 
 - Boss'un **yönü** okunmuyor; mesafe biliniyor, yön "ileride" varsayılıyor. Oku okuyan bir glif dedektörü ya da boss dedektörü gerekiyor.

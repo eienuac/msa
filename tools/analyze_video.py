@@ -78,6 +78,7 @@ def main(argv=None) -> None:
     ap.add_argument("--end", type=float, default=1e9)
     ap.add_argument("--step", type=int, default=2, help="process every n-th frame")
     ap.add_argument("--scale", type=float, default=0.5, help="output video scale")
+    ap.add_argument("--boss", default="kor_bekci", help="profile in configs/bosses/")
     args = ap.parse_args(argv)
 
     out_dir = Path(args.out)
@@ -85,7 +86,9 @@ def main(argv=None) -> None:
     cap = cv2.VideoCapture(args.video)
     fps = cap.get(cv2.CAP_PROP_FPS) or 60.0
     cap.set(cv2.CAP_PROP_POS_FRAMES, int(args.start * fps))
-    pipe = VisionPipeline()
+    from bossai.perception.vision import VisionConfig
+
+    pipe = VisionPipeline(VisionConfig.for_boss(args.boss))
     stem = Path(args.video).stem
     writer = None
     rows = []
