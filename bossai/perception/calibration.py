@@ -111,40 +111,63 @@ def fit_circles_ransac(
     points within `tol` of it) is kept, its points removed, and the search
     repeats on the rest. If `region` (an outline polygon) is given, candidate
     circles must lie inside it, which rejects big circles that only happen to
-    pass through arcs of different zones.
+    pass through arcs of different zones. Vectorised: all candidates of one
+    round are evaluated at once.
     """
-    from ..core.game_state import _polygon_signed_distance
-
-    ring = np.stack([np.cos(np.linspace(0, 2 * np.pi, 24, endpoint=False)), np.sin(np.linspace(0, 2 * np.pi, 24, endpoint=False))], 1)
     rng = np.random.default_rng(seed)
     pts = np.asarray(pts, float)
+    inside_mask = lo = None
+    res = 0.1
+    if region is not None:
+        import cv2
+
+        lo = region.min(0) - region_margin - 1
+        size = np.ceil((region.max(0) + region_margin + 1 - lo) / res).astype(int) + 1
+        inside_mask = np.zeros((size[1], size[0]), np.uint8)
+        cv2.fillPoly(inside_mask, [((region - lo) / res).astype(np.int32)], 1)
+        k = max(1, int(round(region_margin / res)))
+        inside_mask = cv2.dilate(inside_mask, np.ones((2 * k + 1, 2 * k + 1), np.uint8))
+    ang = np.linspace(0, 2 * np.pi, 24, endpoint=False)
+    ring = np.stack([np.cos(ang), np.sin(ang)], 1)
     remaining = pts.copy()
     found: list[tuple[np.ndarray, float]] = []
     n_total = len(pts)
     while len(remaining) >= max(8, int(min_inlier_frac * n_total)) and len(found) < max_circles:
-        best, best_in = None, None
         m = len(remaining)
-        for _ in range(iters):
-            # sample three points that are near each other along the outline (same arc)
-            i = rng.integers(m)
-            span = max(3, m // 8)
-            j, k = (i + rng.integers(1, span)) % m, (i + rng.integers(span // 2, span * 2)) % m
-            fit = _circle_from_3(remaining[[i, j, k]])
-            if fit is None:
-                continue
-            c, r = fit
-            if not (r_range[0] <= r <= r_range[1]):
-                continue
-            if region is not None and np.mean(_polygon_signed_distance(c + r * ring, region) <= region_margin) < 0.9:
-                continue
-            inl = np.abs(np.linalg.norm(remaining - c, axis=1) - r) < tol
-            if best_in is None or inl.sum() > best_in.sum():
-                best, best_in = (c, r), inl
-        if best is None or best_in.sum() < max(8, min_inlier_frac * n_total):
+        span = max(3, m // 8)
+        i = rng.integers(m, size=iters)
+        j = (i + rng.integers(1, span, size=iters)) % m
+        kk = (i + rng.integers(max(1, span // 2), span * 2, size=iters)) % m
+        p1, p2, p3 = remaining[i], remaining[j], remaining[kk]
+        d = 2 * (p1[:, 0] * (p2[:, 1] - p3[:, 1]) + p2[:, 0] * (p3[:, 1] - p1[:, 1]) + p3[:, 0] * (p1[:, 1] - p2[:, 1]))
+        ok = np.abs(d) > 1e-9
+        d = np.where(ok, d, 1.0)
+        s1, s2, s3 = (p1**2).sum(1), (p2**2).sum(1), (p3**2).sum(1)
+        cx = (s1 * (p2[:, 1] - p3[:, 1]) + s2 * (p3[:, 1] - p1[:, 1]) + s3 * (p1[:, 1] - p2[:, 1])) / d
+        cy = (s1 * (p3[:, 0] - p2[:, 0]) + s2 * (p1[:, 0] - p3[:, 0]) + s3 * (p2[:, 0] - p1[:, 0])) / d
+        cen = np.stack([cx, cy], 1)
+        rad = np.linalg.norm(p1 - cen, axis=1)
+        ok &= (rad >= r_range[0]) & (rad <= r_range[1])
+        if inside_mask is not None and ok.any():
+            circ = cen[:, None, :] + rad[:, None, None] * ring[None]  # (iters,24,2)
+            idx = np.floor((circ - lo) / res).astype(int)
+            h, w = inside_mask.shape
+            valid = (idx[..., 0] >= 0) & (idx[..., 0] < w) & (idx[..., 1] >= 0) & (idx[..., 1] < h)
+            vals = np.zeros(valid.shape, bool)
+            vals[valid] = inside_mask[idx[..., 1][valid], idx[..., 0][valid]] > 0
+            ok &= vals.mean(1) >= 0.9
+        if not ok.any():
             break
-        c, r = fit_circle(remaining[best_in])  # refine on the inliers
+        cand = np.flatnonzero(ok)
+        dist = np.abs(np.linalg.norm(remaining[None] - cen[cand, None, :], axis=2) - rad[cand, None])  # (C,m)
+        counts = (dist < tol).sum(1)
+        b = int(np.argmax(counts))
+        if counts[b] < max(8, min_inlier_frac * n_total):
+            break
+        inl = dist[b] < tol
+        c, r = fit_circle(remaining[inl])  # refine on the inliers
         found.append((c, r))
-        remaining = remaining[~best_in]
+        remaining = remaining[~inl]
     return merge_duplicate_circles(found)
 
 

@@ -40,25 +40,30 @@ class TelegraphColor:
     hue_window: tuple[int, int] = (-5, 6)
     max_sat: int = 200
 
-    def mask(self, bgr: np.ndarray, min_contrast: int | None = None) -> np.ndarray:
+    def analyze(self, bgr: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+        """One pass per frame: (hue/saturation/value gate as bool, colour strength as int16)."""
         hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV)
-        h = hsv[..., 0].astype(np.int16)
+        h = hsv[..., 0]
         lo, hi = self.hue_window
         if lo < 0:
             hue_ok = (h >= 180 + lo) | (h <= hi)
         else:
             hue_ok = (h >= lo) & (h <= hi)
-        ok = hue_ok & (hsv[..., 1] <= self.max_sat) & (hsv[..., 2] >= self.min_value)
-        ok &= self.strength(bgr) >= (self.min_contrast if min_contrast is None else min_contrast)
+        gate = hue_ok & (hsv[..., 1] <= self.max_sat) & (hsv[..., 2] >= self.min_value)
+        if self.contrast == "redness":
+            strength = bgr[..., 2].astype(np.int16) - np.maximum(bgr[..., 1], bgr[..., 0]).astype(np.int16)
+        else:
+            strength = (hsv[..., 1].astype(np.uint16) * hsv[..., 2] // 255).astype(np.int16)
+        return gate, strength
+
+    def mask(self, bgr: np.ndarray, min_contrast: int | None = None) -> np.ndarray:
+        gate, strength = self.analyze(bgr)
+        ok = gate & (strength >= (self.min_contrast if min_contrast is None else min_contrast))
         return ok.astype(np.uint8) * 255
 
     def strength(self, bgr: np.ndarray) -> np.ndarray:
         """Continuous colour strength (also used for the fill profile)."""
-        if self.contrast == "redness":
-            b, g, r = cv2.split(bgr.astype(np.float32))
-            return r - np.maximum(g, b)
-        hsv = cv2.cvtColor(bgr, cv2.COLOR_BGR2HSV).astype(np.float32)
-        return hsv[..., 1] * hsv[..., 2] / 255.0
+        return self.analyze(bgr)[1].astype(np.float32)
 
 
 @dataclass
@@ -113,8 +118,9 @@ class HazardDetector:
         small = cv2.resize(frame, (int(W * s), int(H * s)), interpolation=cv2.INTER_AREA)
         sh, sw = small.shape[:2]
         gm = self._ground_mask(W, H, sw, sh)
-        regions = self._regions(small, gm)
-        strength = None
+        gate, strength = c.color.analyze(small)
+        gate &= gm > 0
+        regions = self._regions(gate, strength)
         out: list[ScreenHazard] = []
         min_a = c.min_area * s * s
         max_a = c.max_area_frac * sw * sh
@@ -140,9 +146,7 @@ class HazardDetector:
                 union = np.count_nonzero(filled | em)
                 iou = inter / max(union, 1)
             kind = "ellipse" if ell is not None and iou >= c.ellipse_iou_min else "polygon"
-            if strength is None:
-                strength = c.color.strength(small)
-            vals = strength[y : y + h, x : x + w][filled > 0]
+            vals = strength[y : y + h, x : x + w][filled > 0].astype(np.float32)
             haz = ScreenHazard(
                 contour=cnt.reshape(-1, 2).astype(np.float32) / s,
                 area=area / (s * s),
@@ -154,7 +158,7 @@ class HazardDetector:
                 strength_sample=vals[:: max(1, vals.size // 4000)].astype(np.float32) if vals.size else None,
             )
             if kind == "ellipse":
-                haz.profile = self._radial_profile(strength, gm, ell, c.profile_bins)
+                haz.profile = self._radial_profile(strength.astype(np.float32), gm, ell, c.profile_bins)
             if self._raw is not None:
                 rc, _ = cv2.findContours(cv2.bitwise_and(self._raw, region), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
                 if rc:
@@ -164,7 +168,7 @@ class HazardDetector:
 
     _raw: np.ndarray | None = None
 
-    def _regions(self, small: np.ndarray, gm: np.ndarray) -> list[np.ndarray]:
+    def _regions(self, gate: np.ndarray, strength: np.ndarray) -> list[np.ndarray]:
         """Build one filled region per telegraph.
 
         * Strong-colour blobs (rims, fills) are replaced by their convex hulls,
@@ -177,7 +181,7 @@ class HazardDetector:
         """
         c = self.cfg
         k = np.ones((c.close_kernel, c.close_kernel), np.uint8)
-        strong = cv2.bitwise_and(c.color.mask(small), gm)
+        strong = ((gate & (strength >= c.color.min_contrast)).astype(np.uint8)) * 255
         strong = cv2.morphologyEx(strong, cv2.MORPH_CLOSE, k)
         strong = cv2.morphologyEx(strong, cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
         min_part = c.min_area * c.scale * c.scale * 0.05
@@ -191,7 +195,7 @@ class HazardDetector:
         self._raw = raw
         if not canvas.any():
             return []
-        weak = cv2.bitwise_and(c.color.mask(small, c.color.weak_contrast), gm)
+        weak = ((gate & (strength >= c.color.weak_contrast)).astype(np.uint8)) * 255
         weak = cv2.morphologyEx(weak, cv2.MORPH_CLOSE, k)
         weak = cv2.morphologyEx(weak, cv2.MORPH_OPEN, np.ones((5, 5), np.uint8))
         wcont, _ = cv2.findContours(weak, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)

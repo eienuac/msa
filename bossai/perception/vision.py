@@ -60,6 +60,7 @@ class VisionPipeline:
             BossInfoReader(self.cfg.boss_keywords, background=self.cfg.ocr_in_background) if self.cfg.read_boss_text else None
         )
         self._proj: GroundProjector | None = None
+        self._split_cache: dict[int, tuple[float, list, int]] = {}
         self._last_player_hp = 1.0
         self._last_boss_hp = 1.0
         self._hp_hist: list[tuple[float, float, float]] = []  # (t, player, boss)
@@ -85,16 +86,26 @@ class VisionPipeline:
         resid = float(np.abs(np.linalg.norm(g - center, axis=1) - radius).mean() / max(radius, 1e-6))
         if tr.det.kind == "ellipse" and resid <= self.cfg.circle_fit_max_residual:
             return [Hazard(tr.id * 10, HazardShape.CIRCLE, center, radius, tti, phase)]
-        circles = []
-        if tr.det.raw_contour is not None and len(tr.det.raw_contour) >= 12:
-            graw = proj.to_ground(tr.det.raw_contour)
-            graw = graw[~np.isnan(graw).any(1)]
-            if len(graw) >= 12:
-                circles = self._split_circles(graw, g)
+        circles = self._cached_split(tr, g, proj)
         if circles:
             return [Hazard(tr.id * 10 + k, HazardShape.CIRCLE, c, r, tti, phase) for k, (c, r) in enumerate(circles)]
         step = max(1, len(g) // 48)
         return [Hazard(tr.id * 10, HazardShape.POLYGON, g.mean(0), float(np.ptp(g, 0).max() / 2), tti, phase, vertices=g[::step])]
+
+    def _cached_split(self, tr, hull: np.ndarray, proj: GroundProjector) -> list[tuple[np.ndarray, float]]:
+        """Re-run the circle split only when the region changed noticeably (it is costly)."""
+        cache = self._split_cache.get(tr.id)
+        area = tr.det.area
+        if cache is not None and abs(area - cache[0]) <= 0.12 * cache[0] and tr.frames - cache[2] < 8:
+            return cache[1]
+        circles: list[tuple[np.ndarray, float]] = []
+        if tr.det.raw_contour is not None and len(tr.det.raw_contour) >= 12:
+            graw = proj.to_ground(tr.det.raw_contour)
+            graw = graw[~np.isnan(graw).any(1)]
+            if len(graw) >= 12:
+                circles = self._split_circles(graw[:: max(1, len(graw) // 400)], hull)
+        self._split_cache[tr.id] = (area, circles, tr.frames)
+        return circles
 
     def _split_circles(self, g: np.ndarray, hull: np.ndarray) -> list[tuple[np.ndarray, float]]:
         """Accept a multi-circle explanation only if it reproduces the outline.
@@ -141,6 +152,8 @@ class VisionPipeline:
         proj = self._projector(w, h)
         hud = self.hud.read(frame)
         tracks = self.tracker.update(t, self.detector.detect(frame))
+        alive = {tr.id for tr in self.tracker.tracks}
+        self._split_cache = {k: v for k, v in self._split_cache.items() if k in alive}
         hazards = [hz for tr in tracks for hz in self.track_to_hazards(tr, t, proj)]
 
         php = hud.player_hp if hud.player_hp is not None else self._last_player_hp
