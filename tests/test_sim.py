@@ -109,3 +109,70 @@ def test_saved_model_refuses_other_schema(tmp_path):
     assert saved["hash"] == ObservationEncoder().schema_hash()
     with pytest.raises(SchemaMismatch):
         load_model(tmp_path, encoder=ObservationEncoder(grid=GridSpec(size=24)))
+
+
+def _world_with_circle(telegraph: float):
+    from bossai.core.game_state import Hazard, HazardShape
+    from bossai.sim.world import SimHazard
+
+    w = BossWorld(level_config(0, SimConfig(walk_speed=(5.0, 5.0), accel_time=(0.01, 0.01), dash_distance=(6.0, 6.0))), np.random.default_rng(0))
+    w.next_skill_t = 1e9
+    w.boss_pos = w.player_pos + np.array([0.0, 15.0])
+    h = Hazard(0, HazardShape.CIRCLE, w.player_pos.copy(), 3.0, telegraph, damage=0.2)
+    w.hazards = [SimHazard(h, w.t + telegraph)]
+    return w
+
+
+def test_early_exit_counts_as_dodge_late_exit_does_not():
+    early = _world_with_circle(1.5)
+    ev = early.step({"s"}, ["q"], 1.6)  # dash out right away
+    assert ev.dodges == 1 and ev.late_dodges == 0 and ev.hits == 0
+    late = _world_with_circle(1.5)
+    late.step(set(), [], 0.65)  # wait, then walk out at the last moment
+    ev = late.step({"s"}, [], 1.0)
+    assert ev.hits == 0 and ev.late_dodges == 1 and ev.dodges == 0
+
+
+def test_walking_turns_macro_off():
+    w = BossWorld(level_config(0), np.random.default_rng(3))
+    w.next_skill_t = 1e9
+    w.macro_on = True
+    w.step({"w"}, [], 0.2)
+    assert not w.macro_on
+
+
+def test_dash_gives_no_invulnerability():
+    w = _world_with_circle(0.05)
+    ev = w.step({"s"}, ["q"], 0.1)  # mid-dash at the impact moment, still inside the circle
+    assert ev.hits == 1
+
+
+def test_summon_burst_pushes_back_and_can_steal_target():
+    cfg = level_config(4, SimConfig(skill_overrides={"summon_burst": {"target_steal_prob": 1.0, "knockback": (1.5, 1.5)}}))
+    w = BossWorld(cfg, np.random.default_rng(0))
+    w.hazards.clear()
+    w.boss_pos = w.player_pos + np.array([0.0, 3.0])
+    w.boss_speed = 0.0
+    w._summon_spec = cfg.skill("summon_burst")
+    w._summon_at = w.t + 0.05
+    w.next_skill_t = 1e9
+    hp = w.player_hp
+    before = np.linalg.norm(w.boss_pos - w.player_pos)
+    w.step(set(), [], 0.1)
+    assert np.linalg.norm(w.boss_pos - w.player_pos) == pytest.approx(before + 1.5, abs=0.05)
+    assert w.player_hp == hp and not w.boss_targeted
+    w.macro_on = False
+    w.boss_pos = w.player_pos + np.array([0.0, 2.0])
+    w.step(set(), ["r"], 1.0)  # R next to the boss re-selects it and starts the macro
+    assert w.boss_targeted and w.macro_on
+
+
+def test_level_presets_do_not_leak_between_levels():
+    from bossai.sim.config import level_config
+
+    l0 = level_config(0)
+    assert l0.skill("circle_on_player").telegraph == (1.6, 2.0)
+    l3 = level_config(3, l0)  # what the curriculum does
+    assert l3.skill("circle_on_player").telegraph == (1.0, 1.5)
+    user = level_config(3, SimConfig(skill_overrides={"cone": {"radius": (9.0, 9.0)}}))
+    assert level_config(4, user).skill("cone").radius == (9.0, 9.0)

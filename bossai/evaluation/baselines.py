@@ -66,7 +66,7 @@ class ExpertPolicy(BasePolicy):
 
     def __init__(self, attack: bool = True, params: EscapeParams | None = None):
         self.attack = attack
-        self.planner = SafetyPlanner(params or EscapeParams())
+        self.planner = SafetyPlanner(params or EscapeParams(), min_slack=0.5)
         if not attack:
             self.name = "pacifist"
 
@@ -74,18 +74,15 @@ class ExpertPolicy(BasePolicy):
         s = env.observed_state()
         prev = env.ctx.move_dir
         plan = self.planner.plan(s, prev)
-        windup_close = s.boss.windup > 0 and s.boss.pos is not None and s.boss_distance() < 7.5
         macro_state = env.macro.state
-        if plan.direction or windup_close:
+        if plan.direction:
             move = plan.direction
             dash = plan.dash
-            if windup_close and not move:
-                move = direction_towards(s.player.pos - s.boss.pos)
             mac = 2 if macro_state == MacroState.ON else 0
             return np.array([move, int(dash and s.player.can_dash), mac])
         move = _approach(s)
         mac = 0
-        if self.attack and macro_state == MacroState.OFF and s.boss.targeted and move == 0:
+        if self.attack and macro_state == MacroState.OFF and (s.boss.targeted or s.in_melee_range()) and move == 0:
             mac = 1
         if not self.attack and macro_state == MacroState.ON:
             mac = 2

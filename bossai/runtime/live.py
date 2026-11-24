@@ -116,7 +116,7 @@ def main(argv: list[str] | None = None) -> None:
                     damage_dealt=bool(prev_boss - s.boss.hp > 1e-3),
                     attack_expected=s.in_melee_range() and s.boss.targeted and ctx.move_dir == 0,
                     safe_to_probe=not any(h.contains(np.zeros((1, 2)), margin=0.8)[0] for h in s.hazards),
-                    can_turn_on=s.boss.targeted,
+                    can_turn_on=s.boss.targeted or s.in_melee_range(),
                 )
                 prev_boss = s.boss.hp
                 obs = encoder.encode(s, macro.state, ctx)

@@ -36,6 +36,7 @@ class MacroConfig:
     no_damage_llr: float = 0.25  # in range, standing, but no damage
     probe_after: float = 3.0  # seconds UNKNOWN before a probe press is allowed
     probe_enabled: bool = True
+    no_press_while_moving: bool = True  # walking turns the macro off in this game (user)
 
 
 @dataclass
@@ -46,6 +47,7 @@ class MacroEvidence:
     invalidate: bool = False  # death, loading screen, focus loss, target lost
     safe_to_probe: bool = False  # no hazard threatens the player
     can_turn_on: bool = True  # e.g. boss is targeted
+    moving: bool = False  # the character is walking or dashing this tick
 
 
 @dataclass
@@ -182,6 +184,9 @@ class MacroStateManager:
 
     def _maybe_press(self, now: float, ev: MacroEvidence) -> bool:
         if self.desired is None or not self._rate_ok(now):
+            return False
+        if ev.moving and self.cfg.no_press_while_moving:
+            # moving already turns the macro off; pressing R now would race with it
             return False
         if self.state == MacroState.UNKNOWN:
             if (

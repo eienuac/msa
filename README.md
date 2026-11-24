@@ -73,6 +73,12 @@ Değerlendirme (taban çizgileriyle karşılaştırma, en kötü bölümün vide
 python -m bossai.evaluation.evaluate --model models/kor_bekci_v1 --levels 0 2 4 --episodes 20 --baselines --video worst
 ```
 
+Simülasyonu yukarıdan bakış videosu olarak izleme:
+
+```bash
+python tools/render_sim.py --model models/kor_bekci_v2 --level 3 --seconds 90 --out sim.mp4
+```
+
 Kayıtlı bir videoda görüntü işlemeyi test etme:
 
 ```bash
@@ -96,10 +102,21 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 - **Uyarı süresi:** daire ve yelpaze için 1,1–1,5 sn. Boss'un saldırıları arasında ~7 sn var.
 - **Uyarının yapısı:** dış sınır bir anda tam boyutta beliriyor, içteki koyu dolgu merkezden (yelpazede tepeden) kenara büyüyor, kenara değince patlıyor.
 - **Hasar:** isabet başına canın %12–25'i.
-- **Dash:** 3 şarj. Dashler arasında kısa kilit var ("0,x"). Bir şarj ~4 sn'de doluyor. Üçüncü dashten sonra ~8 sn bekleme.
+- **Dash:** 3 şarj. Dashler arası kilit 1,0 sn ("1,0" geri sayımı). Bir şarj ~3,3 sn'de doluyor. Üçüncü dashten sonra ~8 sn bekleme. Dash atarken hasar alınabiliyor (dokunulmazlık yok).
 - **R makrosu:** açıkken ikonun çerçevesi sarı (sarı piksel oranı açıkken 0,09, kapalıyken 0,000). İkon da daha parlak.
 - **Boss barı:** ad, mesafe ve yön ("▲ 5 m") ile HP sayıları görünüyor. Bar okuması sayılarla ±%1,5 uyumlu.
-- **Uyarısız saldırı:** boss çevresinde 4–5 ateş patlaması. Zeminde işaret yok, tek ipucu ~1 sn önce kolları kaldırıp ellerin parlaması.
+- **Ateş patlaması (çağırma):** boss kollarını kaldırır, ~1 sn sonra etrafında 4–5 ateş patlaması olur. Hasar vermez; etrafa yaratık çıkarır ve oyuncuyu biraz geri savurur. Çıkan yaratıklar hedefi boss'tan alabilir.
+- **Makro:** yürümek makroyu kapatır. Bu yüzden ajan yürürken R'ye hiç basmaz; durduktan sonra tek basışla makroyu yeniden açar. Boss'un yanında R'ye basmak boss'u yeniden hedef alır.
+
+## Kaçış tercihi
+
+Ajan son saniyeyi beklememeli. Ödülde bunun için üç terim var:
+
+- Uyarı alanının içinde geçen her 0,1 sn için ceza.
+- Patlamaya 0,5 sn'den az kala çıkılan kaçışlar "geç kaçış" sayılır ve cezalandırılır.
+- Sadece en az 0,5 sn payla yapılan kaçışlar ödüllendirilir.
+
+"Güvenli bölgeye git" aksiyonu da en az 0,5 sn pay bırakan çıkışları seçer.
 
 ## Görüntüden okunanlar
 
@@ -114,7 +131,7 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 ## Bilinen eksikler (sıradaki adımlar)
 
 - Boss'un **yönü** okunmuyor; mesafe biliniyor, yön "ileride" varsayılıyor. Oku okuyan bir glif dedektörü ya da boss dedektörü gerekiyor.
-- Boss'un uyarısız saldırı hazırlığını (kol kaldırma ve parlama) tespit etme yok. Kayıtlarda bu saldırıdan sadece 3 örnek var; daha fazla kayıt gerekiyor.
+- Çağırma saldırısından sonra hedefin yan yaratığa geçtiği OCR ile anlaşılıyor, ama ajanın boss'u yeniden seçmesi için "boss'un yanına git + R" dışında bir yol modellenmedi.
 - Gölge modda tuşa basılmadığı için makro durum makinesi basışların "kaybolduğunu" görüp kendini kilitliyor. Bu beklenen bir durum; canlı kontrolde oluşmaz.
 - Ekranda birbirine değen birden fazla daire tek bölge olarak birleşiyor; daireleri tek tek ayırma gerekiyor.
 - Kamera modelinin ölçeği varsayıma dayanıyor. Bir kalibrasyon kaydıyla netleşecek.

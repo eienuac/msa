@@ -32,7 +32,8 @@ def action_masks(state: GameState, macro: MacroState) -> np.ndarray:
         move[1:] = False
     if not state.player.can_dash:
         dash[1] = False
-    mac[1] = macro == MacroState.OFF and state.boss.targeted
+    # R next to the boss also re-selects it, so "ON" is allowed when targeted or in melee range
+    mac[1] = macro == MacroState.OFF and (state.boss.targeted or state.in_melee_range())
     mac[2] = macro == MacroState.ON
     return np.concatenate([move, dash, mac])
 

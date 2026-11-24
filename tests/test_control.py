@@ -187,3 +187,25 @@ class TestActionController:
         c.enabled = False
         c.apply(0.2, AgentIntent(move=1), NONE)
         assert be.pressed == set()
+
+
+class TestMoveCancelsMacro:
+    def test_no_r_press_while_moving(self):
+        m = MacroStateManager()
+        run(m, [OFF] * 5)
+        m.request(True)
+        assert not m.update(0.6, MacroEvidence(indicator_on=0.0, moving=True))
+        assert m.update(0.7, MacroEvidence(indicator_on=0.0, moving=False))
+
+    def test_controller_does_not_toggle_r_when_dodging(self):
+        be, mgr, c = make_controller(hold=0.0, lead=0.0)
+        for i in range(5):
+            c.apply(0.1 * i, AgentIntent(), ON)  # macro confirmed ON
+        # a hazard: the agent walks away and asks for OFF -> walking alone turns it off, no R
+        c.apply(0.5, AgentIntent(move=5, macro=2), ON)
+        for i in range(5):
+            c.apply(0.6 + 0.1 * i, AgentIntent(move=5), OFF)
+        assert be.taps("r") == 0
+        # back in place, standing still: now R is pressed once to resume attacking
+        c.apply(1.2, AgentIntent(move=0, macro=1), OFF)
+        assert be.taps("r") == 1

@@ -23,7 +23,9 @@ class RewardWeights:
     time: float = 0.003  # per 0.1 s tick (a 240 s timeout costs -7.2)
     danger_potential: float = 1.0
     danger_horizon: float = 2.0  # seconds
-    dodge: float = 0.1  # threatening hazard resolved without a hit (keep small)
+    dodge: float = 0.1  # left a threatening zone with time to spare (keep small)
+    late_dodge: float = 0.3  # survived, but left the zone at the last moment
+    inside_telegraph: float = 0.04  # per 0.1 s tick spent inside a visible warning zone
     dash: float = 0.05
     dash_unneeded: float = 0.15
     r_press: float = 0.02
@@ -39,6 +41,8 @@ class StepEvents:
     player_damage: float = 0.0  # fraction of player HP lost this step
     hits: int = 0
     dodges: int = 0
+    late_dodges: int = 0
+    inside_telegraph: int = 0
     dashes: int = 0
     dash_unneeded: int = 0
     r_presses: int = 0
@@ -77,7 +81,8 @@ class RewardSystem:
             "death": -w.death if ev.player_dead else 0.0,
             "time": -w.time,
             "danger_shaping": self.gamma * phi_cur - phi_prev,
-            "dodge": w.dodge * ev.dodges,
+            "dodge": w.dodge * ev.dodges - w.late_dodge * ev.late_dodges,
+            "inside_warning": -w.inside_telegraph * ev.inside_telegraph,
             "dash": -w.dash * ev.dashes - w.dash_unneeded * ev.dash_unneeded,
             "macro": -w.r_press * ev.r_presses - w.macro_on_in_danger * ev.macro_on_in_danger,
             "jitter": -w.direction_change * ev.direction_changes - w.reversal * ev.reversals,

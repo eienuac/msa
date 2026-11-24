@@ -35,6 +35,7 @@ class EpisodeStats:
     hits: int = 0
     threats: int = 0
     dodges: int = 0
+    late_dodges: int = 0
     dashes: int = 0
     r_presses: int = 0
     direction_changes: int = 0
@@ -64,7 +65,8 @@ class BossFightEnv(gym.Env):
         self.observation_space = self.encoder.observation_space
         self.action_space = gym.spaces.MultiDiscrete(NVEC)
         self.rewards = RewardSystem(reward_weights, gamma)
-        self.planner = SafetyPlanner(EscapeParams())
+        # the "move to safe zone" action aims for exits with >= 0.5 s to spare, not the last moment
+        self.planner = SafetyPlanner(EscapeParams(), min_slack=0.5)
         self.render_mode = render_mode
         self._rng = np.random.default_rng()
         self.world: BossWorld | None = None
@@ -110,7 +112,7 @@ class BossFightEnv(gym.Env):
             damage_dealt=bool(boss_drop > 1e-4),
             attack_expected=s.in_melee_range() and s.boss.targeted and self.ctx.move_dir == 0 and not s.player.dashing,
             safe_to_probe=not in_danger,
-            can_turn_on=s.boss.targeted,
+            can_turn_on=s.boss.targeted or s.in_melee_range(),
         )
 
     def step(self, action):
@@ -127,7 +129,10 @@ class BossFightEnv(gym.Env):
         held = {k for k in self.backend.pressed if k in "wasd"}
 
         prev_truth = self._truth
-        in_danger_true = any(h.contains(prev_truth.player.pos[None], margin=0.4)[0] for h in prev_truth.hazards)
+        in_danger_true = any(
+            h.contains(prev_truth.player.pos[None], margin=0.4)[0] and h.phase == HazardPhase.TELEGRAPH
+            for h in prev_truth.hazards
+        )
         urgent_true = any(
             h.contains(prev_truth.player.pos[None], margin=0.4)[0] and h.time_to_impact < 0.5 and h.phase == HazardPhase.TELEGRAPH
             for h in prev_truth.hazards
@@ -140,6 +145,8 @@ class BossFightEnv(gym.Env):
             player_damage=wev.player_damage,
             hits=wev.hits,
             dodges=wev.dodges,
+            late_dodges=wev.late_dodges,
+            inside_telegraph=int(in_danger_true),
             dashes=wev.dashes,
             dash_unneeded=int(wev.dashes > 0 and not in_danger_true and prev_truth.boss.windup <= 0),
             r_presses=wev.r_taps,
@@ -164,6 +171,7 @@ class BossFightEnv(gym.Env):
         st.hits += wev.hits
         st.threats += wev.threats
         st.dodges += wev.dodges
+        st.late_dodges += wev.late_dodges
         st.dashes += wev.dashes
         st.r_presses += wev.r_taps
         st.direction_changes += int(changed)

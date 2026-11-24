@@ -30,6 +30,8 @@ class SimHazard:
     hidden: bool = False
     threatened: bool = False
     resolved: bool = False
+    inside: bool = False
+    exit_slack: float = -1.0  # time left when the player last left the zone (-1 = never left)
     active_until: float = 0.0
     # fixed perception errors for this hazard (applied by the perception model)
     missed: bool = False
@@ -43,7 +45,8 @@ class WorldEvents:
     boss_damage: float = 0.0
     player_damage: float = 0.0
     hits: int = 0
-    dodges: int = 0
+    dodges: int = 0  # threatened, not hit, left with at least safe_exit_slack to spare
+    late_dodges: int = 0  # threatened, not hit, but left at the last moment
     threats: int = 0
     dashes: int = 0
     wasted_dash_taps: int = 0
@@ -95,6 +98,9 @@ class BossWorld:
         self.dash_vel = np.zeros(2)
         self.macro_on = bool(r.random() < 0.3)  # unknown start state for the agent
         self.boss_targeted = True
+        self._target_lost = False  # an add took the target (after a summon burst)
+        self._summon_at = float("inf")
+        self._summon_spec = None
         self._macro_pending: list[float] = []
         self._move_time = 0.0
         self._stand_time = 0.0
@@ -169,6 +175,8 @@ class BossWorld:
             self.player_pos = self.player_pos + self.vel * dt
         self._clamp_arena()
         moving = self.dash_left > 0 or self.move_dir != 0
+        dist = float(np.linalg.norm(self.boss_pos - self.player_pos))
+        in_range = dist <= self.melee_range + self.boss_hitbox
         # --- macro toggles (delayed key effect)
         due = [x for x in self._macro_pending if x <= self.t]
         if due:
@@ -177,18 +185,19 @@ class BossWorld:
                 if self.macro_on:
                     self.macro_on = False
                     ev.macro_toggles += 1
-                elif self.boss_targeted:
+                elif self.boss_targeted or in_range:
+                    # R next to the boss also selects it (user)
+                    self._target_lost = False
+                    self.boss_targeted = True
                     self.macro_on = True
                     ev.macro_toggles += 1
         if self.macro_on and self.move_cancels and moving:
             self._move_time += dt
-            if self._move_time > 0.2:
+            if self._move_time > self.cfg.macro_cancel_delay:
                 self.macro_on = False
         else:
             self._move_time = 0.0
         # --- player attacks via macro (melee, standing still)
-        dist = float(np.linalg.norm(self.boss_pos - self.player_pos))
-        in_range = dist <= self.melee_range + self.boss_hitbox
         if self.macro_on and self.boss_targeted and in_range and not moving:
             self._stand_time += dt
             if self._stand_time >= self.attack_resume:
@@ -200,7 +209,17 @@ class BossWorld:
                     ev.boss_killed = True
         else:
             self._stand_time = 0.0
-        self.boss_targeted = dist < 20.0
+        self.boss_targeted = (not self._target_lost) and dist < 20.0
+        # --- summon burst: push back + adds may take the target
+        if self.t >= self._summon_at:
+            spec, self._summon_at = self._summon_spec, float("inf")
+            away = self.player_pos - self.boss_pos
+            if dist < spec.knockback_radius:
+                self.player_pos = self.player_pos + away / max(dist, 1e-6) * sample(self.rng, spec.knockback)
+                self._clamp_arena()
+            if self.rng.random() < spec.target_steal_prob:
+                self._target_lost = True
+                self.boss_targeted = False
         # --- boss movement
         if self.t >= self.casting_until and dist > self.melee_range * 0.7 + self.boss_hitbox:
             step = min(self.boss_speed * dt, dist - (self.melee_range * 0.7 + self.boss_hitbox))
@@ -219,8 +238,12 @@ class BossWorld:
             h = sh.hz
             if not sh.resolved:
                 h.time_to_impact = sh.impact_t - self.t
-                if h.contains(self.player_pos[None], margin=c.hitbox)[0]:
+                inside = bool(h.contains(self.player_pos[None], margin=c.hitbox)[0])
+                if inside:
                     sh.threatened = True
+                elif sh.inside:
+                    sh.exit_slack = h.time_to_impact
+                sh.inside = inside
                 if h.time_to_impact <= 0:
                     sh.resolved = True
                     h.phase = HazardPhase.ACTIVE
@@ -240,7 +263,10 @@ class BossWorld:
                         if self.player_hp <= 1e-9:
                             ev.player_dead = True
                     elif sh.threatened:
-                        ev.dodges += 1
+                        if sh.exit_slack >= c.safe_exit_slack:
+                            ev.dodges += 1
+                        else:
+                            ev.late_dodges += 1
             if not sh.resolved or self.t < sh.active_until:
                 keep.append(sh)
         self.hazards = keep
@@ -294,13 +320,9 @@ class BossWorld:
         elif name == "line":
             add(HazardShape.RECT, self.boss_pos, sample(r, spec.radius), direction=face, width=sample(r, spec.width))
             self.casting_until = self.t + tele
-        elif name == "hidden_burst":
-            n = int(round(sample(r, spec.count)))
-            phase0 = r.uniform(0, 2 * math.pi)
-            ring = sample(r, spec.ring)
-            for i in range(n):
-                a = phase0 + 2 * math.pi * i / n
-                add(HazardShape.CIRCLE, self.boss_pos + ring * np.array([math.cos(a), math.sin(a)]), sample(r, spec.radius))
+        elif name == "summon_burst":
+            self._summon_at = self.t + tele
+            self._summon_spec = spec
             self._windup_start = self.t
             self._windup_until = self.t + tele
             self.casting_until = self.t + tele

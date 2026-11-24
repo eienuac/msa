@@ -33,8 +33,10 @@ class SkillSpec:
     half_angle_deg: Rng = (60, 90)  # (video) cones look like 120-180 degree fans
     width: Rng = (2.0, 3.0)
     stagger: Rng = (0.0, 0.0)
-    ring: Rng = (5.0, 7.0)  # hidden_burst: distance of the bursts from the boss
     hidden: bool = False  # no ground telegraph; only a boss wind-up cue
+    knockback: Rng = (0.0, 0.0)  # metres the player is pushed away from the boss
+    knockback_radius: float = 0.0  # only players closer than this to the boss are pushed
+    target_steal_prob: float = 0.0  # chance the summoned adds take over the player's target
 
 
 SKILLS_ALL: dict[str, SkillSpec] = {
@@ -45,8 +47,10 @@ SKILLS_ALL: dict[str, SkillSpec] = {
         "rain", 0.6, radius=(2.0, 3.5), count=(3, 6), telegraph=(1.2, 1.8), damage=(0.08, 0.15), stagger=(0.0, 0.4)
     ),
     "line": SkillSpec("line", 0.5, radius=(12.0, 18.0), width=(2.0, 3.0), telegraph=(0.8, 1.2)),
-    "hidden_burst": SkillSpec(
-        "hidden_burst", 0.5, radius=(1.5, 2.2), count=(4, 5), telegraph=(0.8, 1.2), damage=(0.12, 0.2), hidden=True
+    # (user) raises its arms (~1 s), fire bursts around it summon adds and push the player back; no damage
+    "summon_burst": SkillSpec(
+        "summon_burst", 0.4, telegraph=(0.8, 1.2), damage=(0.0, 0.0), hidden=True,
+        knockback=(1.0, 2.0), knockback_radius=6.0, target_steal_prob=0.5,
     ),
 }
 
@@ -83,7 +87,7 @@ class SimConfig:
     dash_gap: Rng = (0.9, 1.05)  # (video) "1,0" countdown between dashes
     dash_charge_regen: Rng = (3.0, 3.8)  # (video) 3.25-3.5 s per charge
     dash_empty_lockout: Rng = (7.5, 8.5)  # (video) ~8 s after the third dash
-    dash_iframes: bool = False  # unknown; keep False so the agent never relies on it
+    dash_iframes: bool = False  # (user) dashing does not protect from damage
     # boss
     kill_time: Rng = (70.0, 110.0)  # seconds of uninterrupted macro damage (video: whole fight ~130 s)
     boss_speed: Rng = (1.5, 3.0)
@@ -93,18 +97,23 @@ class SimConfig:
     enrage_below: float = 0.4  # boss HP fraction where attacks speed up
     enrage_speedup: float = 0.75
     skills: tuple[str, ...] = ("circle_on_player",)
-    skill_overrides: dict = field(default_factory=dict)
+    skill_overrides: dict = field(default_factory=dict)  # user/boss overrides, kept across levels
+    level_overrides: dict = field(default_factory=dict)  # set by the curriculum preset only
     # macro (R)
     macro_latency: Rng = (0.1, 0.35)
     macro_press_loss: float = 0.02
-    macro_move_cancels_prob: float = 0.3  # unknown; randomised per episode
+    macro_move_cancels_prob: float = 1.0  # (user) walking turns the macro off
+    macro_cancel_delay: float = 0.05  # seconds of movement before the game cancels it
+    safe_exit_slack: float = 0.5  # leaving a telegraph with less time than this is a "late" dodge
     attack_resume: Rng = (0.2, 0.5)  # standing time before the first hit lands
     noise: NoiseSpec = field(default_factory=NoiseSpec)
 
     def skill(self, name: str) -> SkillSpec:
-        base = SKILLS_ALL[name]
-        over = self.skill_overrides.get(name)
-        return replace(base, **over) if over else base
+        spec = SKILLS_ALL[name]
+        for over in (self.level_overrides.get(name), self.skill_overrides.get(name)):
+            if over:
+                spec = replace(spec, **over)
+        return spec
 
     def with_level(self, level: int) -> "SimConfig":
         return level_config(level, base=self)
@@ -120,7 +129,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
             level=0,
             skills=("circle_on_player",),
             skill_interval=(5.0, 8.0),
-            skill_overrides={"circle_on_player": {"telegraph": (1.6, 2.0)}},
+            level_overrides={"circle_on_player": {"telegraph": (1.6, 2.0)}},
             noise=NoiseSpec(),
         )
     if level == 1:
@@ -129,7 +138,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
             level=1,
             skills=("circle_on_player", "cone", "nova"),
             skill_interval=(4.5, 7.5),
-            skill_overrides={},
+            level_overrides={},
             noise=NoiseSpec(center_sigma=0.1, tti_sigma=0.03, latency=(0.0, 0.05)),
         )
     if level == 2:
@@ -138,7 +147,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
             level=2,
             skills=("circle_on_player", "cone", "nova", "rain", "line"),
             skill_interval=(4.5, 7.5),
-            skill_overrides={},
+            level_overrides={},
             noise=NoiseSpec(
                 center_sigma=0.2,
                 radius_rel_sigma=0.04,
@@ -170,7 +179,7 @@ def level_config(level: int, base: SimConfig | None = None) -> SimConfig:
         level=level,
         skills=tuple(SKILLS_ALL),
         skill_interval=(4.5, 7.5) if level == 3 else (3.5, 6.0),
-        skill_overrides={},
+        level_overrides={},
         noise=noise,
     )
 

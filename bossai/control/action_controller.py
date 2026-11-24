@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from ..core.game_state import DIRECTION_KEYS
 from .input_backend import InputBackend
@@ -65,6 +65,9 @@ class ActionController:
             self.macro.request(True)
         elif intent.macro == 2:
             self.macro.request(False)
+        moving = intent.move != 0 or intent.dash
+        if moving and not evidence.moving:
+            evidence = replace(evidence, moving=True)
         if self.macro.update(now, evidence):
             rep.r_pressed = self._tap(now, "r")
             rep.key_events += 1

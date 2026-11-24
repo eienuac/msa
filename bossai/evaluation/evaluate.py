@@ -49,7 +49,8 @@ def summarize(eps: list[dict]) -> dict:
         "timeout_rate": sum(e["outcome"] == "timeout" for e in eps) / len(eps),
         "time_to_kill": float(np.mean([e["time"] for e in kills])) if kills else None,
         "hits_per_min": sum(e["hits"] for e in eps) / minutes,
-        "dodge_rate": sum(e["dodges"] for e in eps) / max(1, sum(e["threats"] for e in eps)),
+        "dodge_rate": sum(e["dodges"] + e.get("late_dodges", 0) for e in eps) / max(1, sum(e["threats"] for e in eps)),
+        "early_dodge_rate": sum(e["dodges"] for e in eps) / max(1, sum(e["threats"] for e in eps)),
         "dashes_per_min": sum(e["dashes"] for e in eps) / minutes,
         "r_per_min": sum(e["r_presses"] for e in eps) / minutes,
         "dir_changes_per_min": sum(e["direction_changes"] for e in eps) / minutes,
@@ -69,7 +70,7 @@ def evaluate(policies: list[BasePolicy], levels: list[int], episodes: int) -> di
 
 
 def print_table(report: dict) -> None:
-    cols = ["return", "kill_rate", "death_rate", "time_to_kill", "hits_per_min", "dodge_rate", "dashes_per_min", "r_per_min", "dir_changes_per_min"]
+    cols = ["return", "kill_rate", "death_rate", "time_to_kill", "hits_per_min", "dodge_rate", "early_dodge_rate", "dashes_per_min", "r_per_min"]
     print(f"{'level/policy':24s}" + "".join(f"{c[:11]:>12s}" for c in cols))
     for lvl, pols in report.items():
         for name, data in pols.items():
