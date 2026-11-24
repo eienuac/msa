@@ -1,0 +1,11 @@
+# Simulator overrides for Kor Bekçi (values measured from the four recordings).
+# Load with: python -m bossai.training.train --sim-config configs/kor_bekci_sim.yaml
+level: 0               # curriculum start; the trainer raises it automatically
+dash_charges: 3        # 3 charges, "0,x" short lock between dashes
+dash_gap: [0.4, 0.9]
+dash_charge_regen: [3.5, 4.5]   # one charge back every ~4 s
+dash_empty_lockout: [7.5, 9.0]  # ~8 s after the third dash
+melee_range: [2.0, 3.0]         # boss bar shows "2 m" while fighting
+skill_interval: [5.0, 8.0]      # ~7 s between attacks in the recordings
+kill_time: [70, 110]            # whole fight ~130 s with dodging
+# Not measured yet (need a calibration clip): walk_speed, dash_distance, dash_iframes
