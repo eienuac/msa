@@ -17,8 +17,11 @@ See README.md for the module map and commands.
   hashes. Bump `SCHEMA_VERSION` when changing features on purpose.
 
 ## Game facts (Kor Bekçi, from the user and the recordings)
-- Melee character. R = in-game auto-attack ("Asistan"); ON = yellow frame on the
-  R icon. Walking turns the macro OFF; R next to the boss re-selects it.
+- Melee character. R = in-game auto-attack ("Asistan"); ON = yellow animated frame,
+  brighter icon and a small digit on the R icon; a white frame is the moment R is
+  pressed. Walking does NOT reliably turn the macro off (user correction; recordings
+  33/44 show it staying on through many moves) — always read the indicator.
+  R next to the boss re-selects it.
 - Calibration clip: steady walk ~10 ground units/s (W slightly slower, ~9), dash adds
   ~5-6 units, a player-centred circle has radius ~3.8 units → ~0.4 s to walk out from
   the centre. Camera does not rotate by itself; A/D strafe.
@@ -41,6 +44,14 @@ See README.md for the module map and commands.
   over the whole area. Mechanics NOT confirmed by the user yet (dodgeable? damage?
   safe spot?) → no simulator profile or training for it yet. HUD reading on these
   clips is unreliable (different UI scale + player bar).
+- Spider, user's own 1080p clips (33/44/11/22): more attack types than rims — a
+  filled pale-green disc at the boss (11, ~9.5 s), green light beams/lines in the
+  add phase (33), a poison wave (11, ~13 s), banners "YAVRULAR YAĞIYOR", "İPEK
+  PORTALI KIRILDI", "DUVARLAR YENİDEN KIRILIYOR", a red-orange variant (44).
+  The character's own orange/white fire ring is NOT a warning (rim rule now rejects
+  V>235 / S<115). Camera zoom in these clips differs from the Kor Bekçi clips
+  (character higher on screen) → the ground projection's foot point is off until
+  recalibrated with a clip at the same camera setting.
 - HUD at 1920x1080: boss text "Sv. 22 Kor Bekçi | ▲ 5 m" (distance via OCR),
   player/boss HP bars, Q icon digits. Arrow direction is not read yet.
 

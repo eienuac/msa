@@ -80,7 +80,9 @@ class BossWorld:
         self.melee_range = sample(r, c.melee_range)
         self.dps = 1.0 / sample(r, c.kill_time)
         self.macro_latency = sample(r, c.macro_latency)
-        self.move_cancels = bool(r.random() < c.macro_move_cancels_prob)
+        self.move_cancel_chance = sample(r, c.macro_move_cancel_chance)
+        self._bout_cancels = False  # does the current movement bout cancel the macro?
+        self._was_moving = False
         self.attack_resume = sample(r, c.attack_resume)
 
         ang = r.uniform(0, 2 * math.pi)
@@ -191,7 +193,10 @@ class BossWorld:
                     self.boss_targeted = True
                     self.macro_on = True
                     ev.macro_toggles += 1
-        if self.macro_on and self.move_cancels and moving:
+        if moving and not self._was_moving:  # a new movement bout starts
+            self._bout_cancels = bool(self.rng.random() < self.move_cancel_chance)
+        self._was_moving = moving
+        if self.macro_on and self._bout_cancels and moving:
             self._move_time += dt
             if self._move_time > self.cfg.macro_cancel_delay:
                 self.macro_on = False

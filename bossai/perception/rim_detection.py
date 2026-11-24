@@ -32,6 +32,9 @@ from .ui_reader import UILayout
 class RimStyle:
     min_green_shift: int = 14  # (G-R) above the local median
     min_value: int = 160  # rim pixels are bright (measured: V 173-221)
+    max_value: int = 235  # ...but never white-hot: the player's own fire ring is V ~255
+    min_sat: int = 115  # rim S 126-154; the fire ring is washed out (S 54-99)
+    max_sat: int = 180
     min_bg_value: int = 110  # ...and lie on bright ground
     bg_scale: int = 8  # downscale factor for the local median
     tol: float = 0.35  # ground units, distance of a rim pixel to the circle
@@ -71,7 +74,9 @@ class RimDetector:
         bg = cv2.resize(bg.astype(np.float32), (W, H)).astype(np.int16)
         v = frame.max(2)
         vbg = cv2.resize(cv2.medianBlur(cv2.resize(v, (sw, sh), interpolation=cv2.INTER_AREA), 9), (W, H))
-        m = ((gr - bg) > st.min_green_shift) & (v >= st.min_value) & (vbg >= st.min_bg_value)
+        sat = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)[..., 1]
+        m = ((gr - bg) > st.min_green_shift) & (v >= st.min_value) & (v <= st.max_value) & (vbg >= st.min_bg_value)
+        m &= (sat >= st.min_sat) & (sat <= st.max_sat)
         m &= self._ground_mask(W, H) > 0
         m = m.astype(np.uint8) * 255
         return cv2.morphologyEx(m, cv2.MORPH_OPEN, np.ones((2, 2), np.uint8))

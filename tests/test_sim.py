@@ -133,12 +133,16 @@ def test_early_exit_counts_as_dodge_late_exit_does_not():
     assert ev.hits == 0 and ev.late_dodges == 1 and ev.dodges == 0
 
 
-def test_walking_turns_macro_off():
-    w = BossWorld(level_config(0), np.random.default_rng(3))
-    w.next_skill_t = 1e9
-    w.macro_on = True
-    w.step({"w"}, [], 0.2)
-    assert not w.macro_on
+def test_walking_cancels_macro_only_sometimes():
+    # recordings 33/44: the macro stayed on through many moves; the user says it "sometimes" turns off
+    always = BossWorld(level_config(0, SimConfig(macro_move_cancel_chance=(1.0, 1.0))), np.random.default_rng(3))
+    never = BossWorld(level_config(0, SimConfig(macro_move_cancel_chance=(0.0, 0.0))), np.random.default_rng(3))
+    for w in (always, never):
+        w.next_skill_t = 1e9
+        w.macro_on = True
+        w.step({"w"}, [], 0.3)
+    assert not always.macro_on
+    assert never.macro_on
 
 
 def test_dash_gives_no_invulnerability():

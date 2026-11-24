@@ -28,7 +28,7 @@ class RewardWeights:
     inside_telegraph: float = 0.04  # per 0.1 s tick spent inside a visible warning zone
     dash: float = 0.05
     dash_unneeded: float = 0.15
-    r_press: float = 0.02
+    r_press: float = 0.04  # every R press costs; the indicator tells whether one is needed
     macro_on_in_danger: float = 0.3
     direction_change: float = 0.01
     reversal: float = 0.05

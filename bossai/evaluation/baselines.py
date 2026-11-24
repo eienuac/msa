@@ -84,7 +84,7 @@ class ExpertPolicy(BasePolicy):
         if plan.direction:
             move = plan.direction
             dash = plan.dash
-            mac = 2 if macro_state == MacroState.ON else 0
+            mac = 0  # do not toggle R to dodge: walking usually leaves it on (user, recordings)
             return np.array([move, int(dash and s.player.can_dash), mac])
         move = _approach(s)
         if move and self._blocked(s, move):

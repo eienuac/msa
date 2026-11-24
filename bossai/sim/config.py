@@ -104,7 +104,10 @@ class SimConfig:
     # macro (R)
     macro_latency: Rng = (0.1, 0.35)
     macro_press_loss: float = 0.02
-    macro_move_cancels_prob: float = 1.0  # (user) walking turns the macro off
+    # (user + recordings 33/44) walking does NOT reliably turn the macro off: it stayed ON
+    # through many moves. "Sometimes" it does → each movement bout cancels it with this
+    # chance, drawn per episode, so the agent must read the indicator, not assume.
+    macro_move_cancel_chance: Rng = (0.0, 0.4)
     macro_cancel_delay: float = 0.05  # seconds of movement before the game cancels it
     safe_exit_slack: float = 0.5  # leaving a telegraph with less time than this is a "late" dodge
     attack_resume: Rng = (0.2, 0.5)  # standing time before the first hit lands
