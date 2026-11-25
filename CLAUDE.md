@@ -42,7 +42,7 @@ See README.md for the module map and commands.
   player for ~2 s, then the player is wrapped in a web cocoon and small spiders
   appear; a huge ring around the boss, ~1.0-1.2 s later a yellow-green poison wave
   over the whole area. Mechanics NOT confirmed by the user yet (dodgeable? damage?
-  safe spot?) → no simulator profile or training for it yet. HUD reading on these
+  safe spot?) → see the confirmed mechanics below. HUD reading on these
   clips is unreliable (different UI scale + player bar).
 - Spider, user's own 1080p clips (33/44/11/22): more attack types than rims — a
   filled pale-green disc at the boss (11, ~9.5 s), green light beams/lines in the

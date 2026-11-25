@@ -97,6 +97,25 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 
 `--control` bayrağı tuşları düz SendInput ile gönderir. Hiçbir gizleme veya anti-cheat atlatma içermez. Yalnızca otomasyona izin verilen ortamlarda kullanın. F12 ajanı durdurur ve tüm tuşları bırakır. Tuşlar yalnızca `--window-title` ile verilen pencere öndeyken gönderilir.
 
+## Örümcek Ana modeli: `pretrained/orumcek_v1`
+
+Kor Bekçi v4 modelinden başlayıp örümcek simülasyonunda eğitildi (3 milyon adım, curriculum 0→4, bölümlerin %25'i daha kolay seviyelerden). Takip eden halkaya karşı E kalkanı kural tabanlı bir reflekstir; politika ona karışmaz. 12 sabit senaryo (simülasyon):
+
+| Seviye | Politika | Kazanma | Ölüm | Öldürme süresi | İsabet/dk | Erken kaçış | R/dk |
+|---|---|---|---|---|---|---|---|
+| 4 (en zor) | **PPO** | **%75** | %25 | 156 sn | 1,89 | %79 | 9,6 |
+| 4 | kural tabanlı uzman | %42 | %58 | 185 sn | 2,64 | %70 | 6,7 |
+| 3 | **PPO** | **%100** | %0 | 153 sn | 0,91 | %84 | 6,0 |
+| 3 | kural tabanlı uzman | %83 | %17 | 173 sn | 1,65 | %75 | 3,2 |
+| 2 | **PPO** | **%100** | %0 | 141 sn | 0,92 | %89 | 7,1 |
+| 2 | kural tabanlı uzman | %100 | %0 | 155 sn | 1,19 | %85 | 3,4 |
+
+Varsayımlar (kullanıcı henüz doğrulamadı): kalkanın bekleme süresi 3-5 sn, zehirde iki darbe arası 1,0-1,5 sn, koza sersemletmesi 1,0-1,5 sn. Bunlar değişirse kısa bir ek eğitim gerekir.
+
+```bash
+python -m bossai.runtime.live --model pretrained/orumcek_v1 --boss orumcek_ana --source kayit.mp4 --out golge.mp4
+```
+
 ## Eğitilmiş model: `pretrained/kor_bekci_v4` (güncel)
 
 v3'ün üzerine 1 milyon adım, düzeltilmiş makro davranışıyla: yürümek makroyu her zaman değil, bazen kapatır (kayıt 33/44). Değerlendirme yeni simülasyonda, 15 görülmemiş senaryoda, seviye 4:
@@ -165,7 +184,7 @@ Her boss'un görüntü ayarları `configs/bosses/<id>.yaml` dosyasında: uyarı 
 | Profil | Uyarı tarzı | Durum |
 |---|---|---|
 | `kor_bekci` | `filled`: kırmızı alan, içten dolan dolgu | ölçüldü, simülasyon ve model hazır |
-| `orumcek_ana` | `rim`: soluk yeşil-sarı yarı saydam disk, sadece kenar halkası belirgin; zemin turuncu kum | tespit var; mekanikler doğrulanmadı, simülasyon ve eğitim yok |
+| `orumcek_ana` | `rim`: soluk yeşil-sarı yarı saydam disk, sadece kenar halkası belirgin; zemin turuncu kum | tespit var; mekanikler kullanıcıdan (zehir iki aşamalı, takip eden halkaya E kalkanı), simülasyon profili ve `pretrained/orumcek_v1` hazır |
 
 ```bash
 python tools/analyze_video.py kayit.mp4 --boss orumcek_ana --out analysis
