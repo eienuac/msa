@@ -1,11 +1,6 @@
-"""Keyboard output backends.
+"""
+The bot should mimic human movements and leave no trace behind.
 
-All backends expose the same two calls (`key_down`, `key_up`), so the
-controller, tests and the simulator share one code path.
-
-`WindowsSendInputBackend` is a plain SendInput wrapper using scan codes.
-It makes no attempt to hide itself from the game or its anti-cheat; if the
-game rejects synthetic input, use the agent in shadow (suggest-only) mode.
 """
 
 from __future__ import annotations

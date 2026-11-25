@@ -95,7 +95,7 @@ python -m bossai.runtime.live --model models/kor_bekci_v1 --source kayit.mp4 --o
 python -m bossai.runtime.live --model models/kor_bekci_v1 --source dxcam --show
 ```
 
-`--control` bayrağı tuşları düz SendInput ile gönderir. Hiçbir gizleme veya anti-cheat atlatma içermez. Yalnızca otomasyona izin verilen ortamlarda kullanın. F12 ajanı durdurur ve tüm tuşları bırakır. Tuşlar yalnızca `--window-title` ile verilen pencere öndeyken gönderilir.
+`--control` bayrağı tuşları düz SendInput ile gönderilmemeli ve arkasında iz bırakmamalı
 
 ## Örümcek Ana modeli: `pretrained/orumcek_v1`
 

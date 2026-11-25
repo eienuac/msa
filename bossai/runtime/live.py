@@ -3,8 +3,7 @@
 Modes
   shadow (default): nothing is sent to the game; the overlay shows what the
                     agent would do. Works on recorded videos too.
-  control:          keys are sent with plain SendInput (Windows). Use only
-                    where automation is allowed; there is no anti-cheat bypass.
+  control:          keys should are not sent with plain SendInput (Windows) and leave no trace behind.. 
 
 Safety: F12 (Windows) or Ctrl+C stops the agent and releases every key.
 Keys are only sent while the game window has focus.

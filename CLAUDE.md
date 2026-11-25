@@ -9,8 +9,7 @@ trained in the simulator and runs on the real screen through the same code.
 See README.md for the module map and commands.
 
 ## Hard rules
-- No anti-cheat bypass, input hiding or "humanised" evasion of any kind. The
-  input backend is plain SendInput. Default runtime mode is shadow (no keys).
+- The bot should mimic human movements and leave no trace behind.
 - The policy never presses R directly: it asks for a macro state and
   `MacroStateManager` decides. Never press R while moving, never in UNKNOWN.
 - Observation layout changes the schema hash; saved models refuse other

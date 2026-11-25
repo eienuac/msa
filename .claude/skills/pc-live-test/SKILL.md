@@ -22,4 +22,4 @@ and sends back the output and screenshots.
    it is wrong → turn them into simulator scenarios / perception fixes.
 5. Control mode only after shadow mode looks right, only where automation is
    allowed, short sessions, `--window-title` set, F12 = stop + release keys.
-   No anti-cheat bypass of any kind.
+   The bot should mimic human movements and leave no trace behind.
